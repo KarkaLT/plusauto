@@ -9,6 +9,7 @@
     "@vee-validate/zod": "^4.15.1",
     "eslint": "^9.0.0",
     "nuxt": "^4.1.2",
+    "nuxt-auth-utils": "0.5.25",
     "nuxt-file-storage": "^0.3.0",
     "typescript": "^5.6.3",
     "vue": "^3.5.22",
@@ -20,7 +21,19 @@
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
+    "postinstall": "nuxt prepare",
+    "prepare": "husky"
   },
-  "type": "module"
+  "type": "module",
+  "devDependencies": {
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.6",
+    "prettier": "^3.6.2"
+  },
+  "lint-staged": {
+    "*.{js,ts,vue,json,md}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  }
 }
