@@ -17,6 +17,13 @@ export default defineNuxtConfig({
     '@vee-validate/nuxt',
     'nuxt-auth-utils',
   ],
+  vite: {
+    resolve: {
+      alias: {
+        '.prisma/client/index-browser': './node_modules/.prisma/client/index-browser.js',
+      },
+    },
+  },
   fileStorage: {
     mount: process.env.MOUNT,
   },
