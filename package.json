@@ -18,6 +18,7 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
+    "lint": "eslint --fix",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",

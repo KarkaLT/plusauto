@@ -1,26 +1,39 @@
-import { getValidatedRouterParams } from 'h3';
-import prisma from "~/lib/prisma";
-import { z } from 'zod';
+import { getValidatedRouterParams } from 'h3'
+import prisma from '~/lib/prisma'
+import { z } from 'zod'
 
 const commentDeleteSchema = z.object({
-    id: z.string().min(1, 'ID is required'),
-});
+  id: z.string().min(1, 'ID is required'),
+})
 
 // Delete a comment by ID
 export default defineEventHandler(async (event) => {
-    const { id } = await getValidatedRouterParams(event, commentDeleteSchema.parse);
+  // Require user to be logged in
+  const user = await requireUserSession(event)
 
-    // Check if comment exists
-    if (!await prisma.comment.findUnique({ where: { id } })) {
-        throw createError({
-            statusCode: 404,
-            statusMessage: 'Comment not found',
-        });
-    }
+  const { id } = await getValidatedRouterParams(event, commentDeleteSchema.parse)
 
-    return prisma.comment.delete({
-        where: {
-            id,
-        },
-    });
-});
+  // Check if comment exists
+  const comment = await prisma.comment.findUnique({ where: { id } })
+
+  if (!comment) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Comment not found',
+    })
+  }
+
+  // Check if user owns the comment
+  if (comment.authorId !== user.id) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'You can only delete your own comments',
+    })
+  }
+
+  return prisma.comment.delete({
+    where: {
+      id,
+    },
+  })
+})

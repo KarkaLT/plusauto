@@ -1,45 +1,58 @@
-import { getValidatedRouterParams } from "h3";
-import prisma from "~/lib/prisma";
-import {z} from 'zod';
+import { getValidatedRouterParams } from 'h3'
+import prisma from '~/lib/prisma'
+import { z } from 'zod'
 
 const commentIdSchema = z.object({
-    id: z.string().min(1, 'ID is required'),
-});
+  id: z.string().min(1, 'ID is required'),
+})
 
 const commentUpdateSchema = z.object({
-    content: z.string().min(1, 'Content is required'),
-});
+  content: z.string().min(1, 'Content is required'),
+})
 
 // Update a comment
 export default defineEventHandler(async (event) => {
-    const { id } = await getValidatedRouterParams(event, commentIdSchema.parse);
-    const body = await readBody(event);
+  // Require user to be logged in
+  const user = await requireUserSession(event)
 
-    const result = commentUpdateSchema.safeParse(body);
+  const { id } = await getValidatedRouterParams(event, commentIdSchema.parse)
+  const body = await readBody(event)
 
-    // Validate input
-    if (!result.success) {
-        throw createError({
-            statusCode: 400,
-            statusMessage: 'Validation Error',
-            data: z.treeifyError(result.error),
-        });
-    }
+  const result = commentUpdateSchema.safeParse(body)
 
-    // Check if comment exists
-    if (!await prisma.comment.findUnique({where: {id: id}})) {
-        throw createError({
-            statusCode: 404,
-            statusMessage: 'Comment not found',
-        });
-    }
+  // Validate input
+  if (!result.success) {
+    throw createError({
+      statusCode: 400,
+      statusMessage: 'Validation Error',
+      data: z.treeifyError(result.error),
+    })
+  }
 
-    return prisma.comment.update({
-        where: {
-            id: id,
-        },
-        data: {
-            content: result.data.content,
-        },
-    });
-});
+  // Check if comment exists
+  const comment = await prisma.comment.findUnique({ where: { id: id } })
+
+  if (!comment) {
+    throw createError({
+      statusCode: 404,
+      statusMessage: 'Comment not found',
+    })
+  }
+
+  // Check if user owns the comment
+  if (comment.authorId !== user.id) {
+    throw createError({
+      statusCode: 403,
+      statusMessage: 'You can only edit your own comments',
+    })
+  }
+
+  return prisma.comment.update({
+    where: {
+      id: id,
+    },
+    data: {
+      content: result.data.content,
+    },
+  })
+})

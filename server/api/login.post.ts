@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import prisma from '~/lib/prisma'
 
 const bodySchema = z.object({
   email: z.email(),
@@ -8,18 +9,22 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   const { email, password } = await readValidatedBody(event, bodySchema.parse)
 
-  if (email === 'admin@admin.com' && password === 'iamtheadmin') {
-    // set the user session in the cookie
-    // this server util is auto-imported by the auth-utils module
-    await setUserSession(event, {
-      user: {
-        name: 'John Doe',
-      },
+  const user = await prisma.user.findUnique({ where: { email } })
+
+  if (!user || !(await verifyPassword(user.password, password))) {
+    throw createError({
+      statusCode: 401,
+      message: 'Bad credentials',
     })
-    return {}
   }
-  throw createError({
-    statusCode: 401,
-    message: 'Bad credentials',
+
+  await setUserSession(event, {
+    user: {
+      name: user.name ?? 'User',
+      id: user.id,
+      role: user.role,
+      email: user.email,
+    },
   })
+  return { statusMessage: 'Login successful' }
 })
