@@ -26,7 +26,6 @@ export default defineEventHandler(async (event) => {
       id: user.id,
       role: user.role,
       email: user.email,
-      password: user.password,
     },
   })
   return { statusMessage: 'Registration successful', user }

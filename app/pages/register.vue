@@ -16,7 +16,7 @@ const credentials = reactive({
 
 async function register() {
   try {
-    await $fetch('/api/register', {
+    await $fetch('/api/auth/register', {
       method: 'POST',
       body: credentials,
     })
