@@ -32,6 +32,7 @@ export default defineNuxtConfig({
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID,
         clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        redirectURL: process.env.NUXT_OAUTH_GOOGLE_REDIRECT_URL,
       },
     },
   },
