@@ -2,8 +2,8 @@ import { z } from 'zod'
 import prisma from '~/lib/prisma'
 
 const bodySchema = z.object({
-  email: z.email(),
-  password: z.string().min(8),
+  email: z.email('Neteisingas el. pašto formatas'),
+  password: z.string().min(8, 'Slaptažodis turi būti bent 8 simbolių ilgio'),
 })
 
 export default defineEventHandler(async (event) => {
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   if (!user || !(await verifyPassword(user.password, password))) {
     throw createError({
       statusCode: 401,
-      message: 'Bad credentials',
+      statusMessage: 'Neteisingas el. paštas arba slaptažodis',
     })
   }
 

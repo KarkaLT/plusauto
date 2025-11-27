@@ -19,5 +19,10 @@ export default defineEventHandler(async (event) => {
     })
   }
 
-  return category
+  const attributes = await prisma.attributeDefinition.findMany({ where: { categoryId: id } })
+
+  return {
+    ...category,
+    attributes,
+  }
 })

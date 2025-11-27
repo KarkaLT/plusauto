@@ -3,14 +3,18 @@
   "dependencies": {
     "@nuxt/eslint": "1.9.0",
     "@nuxt/image": "1.11.0",
-    "@nuxt/ui": "4.0.1",
-    "@prisma/nuxt": "^0.3.0",
+    "@nuxt/ui": "^4.2.1",
+    "@prisma/adapter-pg": "^7.0.1",
+    "@prisma/client": "^7.0.0",
+    "@types/pg": "^8.15.6",
     "@vee-validate/nuxt": "^4.15.1",
     "@vee-validate/zod": "^4.15.1",
+    "dotenv": "^17.2.3",
     "eslint": "^9.0.0",
     "nuxt": "^4.1.2",
     "nuxt-auth-utils": "0.5.25",
     "nuxt-file-storage": "^0.3.0",
+    "pg": "^8.16.3",
     "typescript": "^5.6.3",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"
@@ -27,9 +31,12 @@
   },
   "type": "module",
   "devDependencies": {
+    "@iconify-json/simple-icons": "^1.2.60",
     "husky": "^9.1.7",
     "lint-staged": "^16.2.6",
-    "prettier": "^3.6.2"
+    "prettier": "^3.6.2",
+    "prisma": "^7.0.0",
+    "tsx": "^4.20.6"
   },
   "lint-staged": {
     "*.{js,ts,vue,json,md}": [

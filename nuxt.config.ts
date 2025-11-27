@@ -12,21 +12,25 @@ export default defineNuxtConfig({
     '@nuxt/eslint',
     '@nuxt/image',
     '@nuxt/ui',
-    '@prisma/nuxt',
     'nuxt-file-storage',
     '@vee-validate/nuxt',
     'nuxt-auth-utils',
   ],
-  vite: {
-    resolve: {
-      alias: {
-        '.prisma/client/index-browser': './node_modules/.prisma/client/index-browser.js',
-      },
-    },
-  },
   fileStorage: {
     mount: process.env.MOUNT,
   },
+  app: {
+    head: {
+      link: [
+        {
+          rel: 'stylesheet',
+          href: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
+        },
+      ],
+    },
+    pageTransition: { name: 'page', mode: 'out-in' },
+  },
+  css: ['./app/assets/css/main.css'],
   runtimeConfig: {
     oauth: {
       google: {

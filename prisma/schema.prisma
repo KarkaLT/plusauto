@@ -7,7 +7,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum Role {
@@ -21,6 +20,7 @@ model User {
   email    String    @unique
   password String
   name     String?
+  phoneNumber String?
   role     Role      @default(USER)
   listings Listing[]
   comments Comment[]
@@ -38,6 +38,7 @@ model Category {
   name     String    @unique
   description String?
   listings Listing[]
+  attributes AttributeDefinition[]
 }
 
 model Listing {
@@ -50,6 +51,7 @@ model Listing {
   categoryId  String
   category    Category  @relation(fields: [categoryId], references: [id])
   images      Images[]
+  attributes  ListingAttribute[]
   comments    Comment[]
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -67,4 +69,47 @@ model Comment {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   replies   Comment[] @relation("CommentToComment")
+}
+
+enum AttributeType {
+  STRING
+  INT
+  FLOAT
+  BOOLEAN
+  DATE
+  ENUM
+  JSON
+}
+
+model AttributeDefinition {
+  id         String        @id @default(cuid(2))
+  categoryId String
+  category   Category      @relation(fields: [categoryId], references: [id])
+  name       String
+  key        String
+  type       AttributeType @default(STRING)
+  required   Boolean       @default(false)
+  options    Json?         // for enum/options metadata
+  minNumber  Float?        // min value for INT/FLOAT attributes
+  maxNumber  Float?        // max value for INT/FLOAT attributes
+  minDate    DateTime?     // minimum date for DATE attributes
+  maxDate    DateTime?     // maximum date for DATE attributes
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  listingAttributes ListingAttribute[]
+
+  @@unique([categoryId, key])
+}
+
+model ListingAttribute {
+  id          String    @id @default(cuid(2))
+  listingId   String
+  listing     Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  attributeId String
+  attribute   AttributeDefinition @relation(fields: [attributeId], references: [id])
+  value       Json
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([listingId, attributeId])
 }
