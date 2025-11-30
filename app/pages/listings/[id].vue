@@ -134,6 +134,8 @@ const comments = computed<DisplayComment[]>(() => {
   return rawCommentsData.value.map(transformComment)
 })
 
+const toast = useToast()
+
 async function addComment() {
   if (!comment.value.trim()) return
   if (!loggedIn.value) {
@@ -155,7 +157,11 @@ async function addComment() {
     await refreshComments()
   } catch (err) {
     console.error('Failed to post comment:', err)
-    alert('Nepavyko paskelbti komentaro. Bandykite dar kartą.')
+    toast.add({
+      title: 'Klaida',
+      description: 'Nepavyko paskelbti komentaro. Bandykite dar kartą.',
+      color: 'error',
+    })
   } finally {
     isPosting.value = false
   }
@@ -187,7 +193,11 @@ async function saveEdit(commentId: string) {
     await refreshComments()
   } catch (err) {
     console.error('Failed to update comment:', err)
-    alert('Nepavyko atnaujinti komentaro. Bandykite dar kartą.')
+    toast.add({
+      title: 'Klaida',
+      description: 'Nepavyko atnaujinti komentaro. Bandykite dar kartą.',
+      color: 'error',
+    })
   }
 }
 
@@ -207,7 +217,11 @@ async function confirmDelete() {
     await refreshComments()
   } catch (err) {
     console.error('Failed to delete comment:', err)
-    alert('Nepavyko ištrinti komentaro. Bandykite dar kartą.')
+    toast.add({
+      title: 'Klaida',
+      description: 'Nepavyko ištrinti komentaro. Bandykite dar kartą.',
+      color: 'error',
+    })
   } finally {
     isDeleteModalOpen.value = false
     commentToDelete.value = null

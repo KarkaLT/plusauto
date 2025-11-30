@@ -33,6 +33,8 @@ const schema = z
     path: ['confirmPassword'],
   })
 
+const toast = useToast()
+
 async function register() {
   try {
     await $fetch('/api/auth/register', {
@@ -45,8 +47,11 @@ async function register() {
     const statusMessage =
       (error as { data?: { statusMessage?: string } })?.data?.statusMessage ||
       'Registracija nepavyko'
-    // You might want to show a toast notification here
-    alert(statusMessage)
+    toast.add({
+      title: 'Klaida',
+      description: statusMessage,
+      color: 'error',
+    })
   }
 }
 

@@ -16,6 +16,8 @@ const schema = z.object({
 
 const { fetch: fetchSession } = useUserSession()
 
+const toast = useToast()
+
 async function login() {
   try {
     await $fetch('/api/auth/login', {
@@ -25,11 +27,14 @@ async function login() {
     await fetchSession()
     await navigateTo('/')
   } catch (error: unknown) {
-    console.error('Login failed', error)
     const statusMessage =
       (error as { data?: { statusMessage?: string } })?.data?.statusMessage ||
       'Prisijungimas nepavyko'
-    alert(statusMessage)
+    toast.add({
+      title: 'Klaida',
+      description: statusMessage,
+      color: 'error',
+    })
   }
 }
 

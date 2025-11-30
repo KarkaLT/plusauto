@@ -10,6 +10,11 @@ async function logout() {
 const items = [
   [
     {
+      label: 'Profilis',
+      icon: 'i-heroicons-user-circle',
+      to: '/profile',
+    },
+    {
       label: 'Mano skelbimai',
       icon: 'i-heroicons-list-bullet',
       to: '/my-listings',
@@ -49,7 +54,10 @@ const items = [
           <UDropdownMenu :items="items" :popper="{ placement: 'bottom-end' }">
             <UButton color="neutral" variant="ghost" trailing-icon="i-heroicons-chevron-down">
               <UAvatar
-                :src="`https://api.dicebear.com/10/identicon/svg?seed=${encodeURIComponent(user?.email ?? user?.name ?? 'guest')}`"
+                :src="
+                  user?.picture ??
+                  `https://api.dicebear.com/10/identicon/svg?seed=${encodeURIComponent(user?.email ?? user?.name ?? 'guest')}`
+                "
                 :alt="user?.name"
                 size="xs"
               />
