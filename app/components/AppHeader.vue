@@ -1,10 +1,7 @@
 <script setup lang="ts">
 const { loggedIn, user, clear } = useUserSession()
 
-console.log(user.value)
-
 async function logout() {
-  console.log('logout')
   await $fetch('/api/auth/logout', { method: 'POST' })
   await clear()
   await navigateTo('/')
