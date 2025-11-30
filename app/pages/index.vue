@@ -12,6 +12,20 @@ const { data: listings, pending } = await useFetch('/api/listing/all', {
 const handleFilter = (filters: any) => {
   router.push({ query: filters })
 }
+
+const sortOptions = [
+  { label: 'Naujausi', value: 'createdAt_desc' },
+  { label: 'Seniausi', value: 'createdAt_asc' },
+  { label: 'Pigiausi', value: 'price_asc' },
+  { label: 'Brangiausi', value: 'price_desc' },
+]
+
+const selectedSort = computed({
+  get: () => sortOptions.find((o) => o.value === route.query.sort) || sortOptions[0],
+  set: (val) => {
+    router.push({ query: { ...route.query, sort: val?.value } })
+  },
+})
 </script>
 
 <template>
@@ -26,13 +40,18 @@ const handleFilter = (filters: any) => {
         <!-- Listings Grid -->
         <div class="lg:col-span-3">
           <div class="flex items-center justify-between mb-6">
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Naujausi skelbimai</h2>
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+              {{ selectedSort?.label ?? 'Naujausi' }} skelbimai
+            </h2>
             <div class="flex items-center gap-2">
               <span class="text-sm text-gray-500 dark:text-gray-400">Rikiuoti pagal:</span>
               <USelectMenu
-                :options="['Naujausi', 'Pigiausi', 'Brangiausi', 'Rida', 'Metai']"
+                v-model="selectedSort"
+                :items="sortOptions"
                 placeholder="Rikiuoti"
                 size="sm"
+                class="w-30"
+                :search-input="false"
               />
             </div>
           </div>

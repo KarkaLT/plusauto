@@ -16,7 +16,6 @@ const route = useRoute()
 
 // Categories
 const { categories } = useCategories()
-console.log(categories.value)
 const selectedCategoryId = ref<Category | undefined>(
   categories.value.find((category) => category.id === route.query.categoryId)
 )
@@ -116,6 +115,7 @@ const getOptions = (attribute: AttributeDefinition) => {
           :items="categories"
           label-key="name"
           placeholder="Pasirinkite kategoriją"
+          class="w-full"
         />
       </UFormField>
 
@@ -130,7 +130,7 @@ const getOptions = (attribute: AttributeDefinition) => {
         <div v-for="attr in attributes" :key="attr.id" class="space-y-2">
           <!-- STRING -->
           <UFormField v-if="attr.type === 'STRING'" :label="attr.name">
-            <UInput v-model="filters[attr.key]" :placeholder="attr.name" />
+            <UInput v-model="filters[attr.key]" :placeholder="attr.name" class="w-full" />
           </UFormField>
 
           <!-- INT / FLOAT (Range) -->
@@ -166,6 +166,7 @@ const getOptions = (attribute: AttributeDefinition) => {
               v-model="filters[attr.key]"
               :items="getOptions(attr)"
               :placeholder="`Pasirinkite ${attr.name.toLowerCase()}`"
+              class="w-full"
             />
           </UFormField>
         </div>

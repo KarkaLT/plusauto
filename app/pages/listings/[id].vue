@@ -241,10 +241,6 @@ function isOwnComment(authorId: string): boolean {
         >Pagrindinis</NuxtLink
       >
       <UIcon name="i-heroicons-chevron-right" class="w-4 h-4" />
-      <NuxtLink to="/" class="hover:text-primary-600 dark:hover:text-primary-400"
-        >Automobiliai</NuxtLink
-      >
-      <UIcon name="i-heroicons-chevron-right" class="w-4 h-4" />
       <span class="text-gray-900 dark:text-white">{{ listing.title }}</span>
     </div>
 
@@ -403,7 +399,7 @@ function isOwnComment(authorId: string): boolean {
             <p class="text-gray-600 dark:text-gray-400 mb-4">
               Norite komentuoti? Prisijunkite arba užsiregistruokite.
             </p>
-            <NuxtLink to="/auth/login">
+            <NuxtLink to="/login">
               <UButton color="primary"> Prisijungti </UButton>
             </NuxtLink>
           </div>
@@ -457,6 +453,7 @@ function isOwnComment(authorId: string): boolean {
             icon="i-heroicons-envelope"
             :to="`mailto:${listing.seller.email}`"
             target="_blank"
+            class="mt-2"
           >
             Siųsti el. laišką
           </UButton>

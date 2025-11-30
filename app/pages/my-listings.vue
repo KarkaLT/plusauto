@@ -19,6 +19,9 @@ const { data: listings, pending } = await useFetch('/api/listing/mine')
 
         <!-- Listings -->
         <template v-else-if="listings && listings.length > 0">
+          <div class="col-span-full">
+            <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-6">Mano skelbimai</h2>
+          </div>
           <ListingCard v-for="listing in listings" :key="listing.id" :listing="listing" />
         </template>
 

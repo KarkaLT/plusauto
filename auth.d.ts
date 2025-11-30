@@ -8,6 +8,7 @@ declare module '#auth-utils' {
     picture?: string
     googleId?: string
     role: Role
+    phoneNumber?: string
   }
 }
 

@@ -24,6 +24,7 @@ export default defineEventHandler(async (event) => {
           id: true,
           name: true,
           email: true,
+          phoneNumber: true,
         },
       },
       category: true,

@@ -46,6 +46,9 @@ const categoryAttributes = ref<AttributeDefinition[]>([])
 const attributeErrors = ref<Record<string, string | null>>({})
 const touchedFields = ref<Record<string, boolean>>({})
 const files = ref<File[]>([])
+const processedFiles = new Set<string>()
+
+const toast = useToast()
 
 const form = ref({
   title: '',
@@ -148,6 +151,10 @@ async function handleFileChange() {
 
   const filesToUpload = []
   for (const file of files.value) {
+    const key = `${file.name}-${file.size}-${file.lastModified}`
+    if (processedFiles.has(key)) continue
+    processedFiles.add(key)
+
     const reader = new FileReader()
     const p = new Promise<string>((resolve, reject) => {
       reader.onload = (e) => resolve(e.target?.result as string)
@@ -164,6 +171,8 @@ async function handleFileChange() {
     })
   }
 
+  if (filesToUpload.length === 0) return
+
   try {
     const { urls } = await $fetch<{ urls: string[] }>('/api/upload', {
       method: 'POST',
@@ -172,9 +181,11 @@ async function handleFileChange() {
     form.value.images.push(...urls)
   } catch (err) {
     console.error('Upload failed:', err)
-    // TODO: Show error notification
-  } finally {
-    files.value = [] // Reset input
+    toast.add({
+      title: 'Error',
+      description: 'Failed to upload files',
+      color: 'error',
+    })
   }
 }
 
@@ -420,24 +431,6 @@ function parseValueForSubmit(def: AttributeDefinition, raw: unknown): unknown {
                 icon="i-heroicons-cloud-arrow-up"
                 @change="handleFileChange"
               />
-            </div>
-
-            <!-- Previews -->
-            <div v-if="form.images.length" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div
-                v-for="(img, index) in form.images"
-                :key="index"
-                class="relative group aspect-video bg-gray-100 rounded-lg overflow-hidden"
-              >
-                <img :src="img" class="w-full h-full object-cover" >
-                <button
-                  type="button"
-                  class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  @click="form.images.splice(index, 1)"
-                >
-                  <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
-                </button>
-              </div>
             </div>
           </div>
         </div>

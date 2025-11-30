@@ -102,6 +102,18 @@ export default defineEventHandler(async (event) => {
     where.AND = attributeFilters
   }
 
+  // Handle sorting
+  const sort = query.sort as string | undefined
+  let orderBy: Prisma.ListingOrderByWithRelationInput = { createdAt: 'desc' }
+
+  if (sort === 'createdAt_asc') {
+    orderBy = { createdAt: 'asc' }
+  } else if (sort === 'price_asc') {
+    orderBy = { price: 'asc' }
+  } else if (sort === 'price_desc') {
+    orderBy = { price: 'desc' }
+  }
+
   const listings = await prisma.listing.findMany({
     where,
     include: {
@@ -116,7 +128,7 @@ export default defineEventHandler(async (event) => {
       },
       category: true,
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy,
   })
 
   // Transform listings to include flattened common attributes

@@ -11,16 +11,28 @@ const hasPassword = ref(false)
 
 // Check if user has a password (not OAuth-only)
 onMounted(async () => {
-  // We can infer this from the user object - if they have a googleId but no password set initially
-  // For simplicity, we'll use the presence of googleId and absence of recent password login
-  // In a real app, you might want an API endpoint to check this
-  hasPassword.value = !!user.value?.googleId === false // If no googleId, likely email/password user
+  try {
+    const { hasPassword: hasPw } = await $fetch('/api/user/has-password')
+    hasPassword.value = hasPw
+  } catch (e) {
+    console.error('Failed to check password status', e)
+  }
 })
 
 const form = ref({
   currentPassword: '',
   newPassword: '',
   confirmPassword: '',
+})
+
+const profileForm = ref({
+  phoneNumber: '',
+})
+
+onMounted(() => {
+  if (user.value?.phoneNumber) {
+    profileForm.value.phoneNumber = user.value.phoneNumber
+  }
 })
 
 const schema = computed(() => {
@@ -52,8 +64,42 @@ const schema = computed(() => {
     })
 })
 
+const profileSchema = z.object({
+  phoneNumber: z.string().optional(),
+})
+
 const toast = useToast()
 const isSubmitting = ref(false)
+const isProfileSubmitting = ref(false)
+
+async function updateProfile() {
+  isProfileSubmitting.value = true
+  try {
+    await $fetch('/api/user/profile', {
+      method: 'PATCH',
+      body: profileForm.value,
+    })
+
+    toast.add({
+      title: 'Sėkmingai atnaujinta',
+      description: 'Profilio informacija sėkmingai atnaujinta',
+      color: 'success',
+    })
+  } catch (error: unknown) {
+    console.error('Profile update failed', error)
+    const statusMessage =
+      (error as { data?: { statusMessage?: string } })?.data?.statusMessage ||
+      'Profilio atnaujinimas nepavyko'
+
+    toast.add({
+      title: 'Klaida',
+      description: statusMessage,
+      color: 'error',
+    })
+  } finally {
+    isProfileSubmitting.value = false
+  }
+}
 
 async function updatePassword() {
   isSubmitting.value = true
@@ -134,6 +180,46 @@ async function updatePassword() {
                 {{ user?.email }}
               </p>
             </div>
+          </div>
+
+          <!-- Profile Section -->
+          <div class="mb-10 pb-10 border-b border-gray-200 dark:border-gray-800">
+            <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Profilio informacija
+            </h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+              Atnaujinkite savo kontaktinę informaciją
+            </p>
+
+            <UForm
+              :schema="profileSchema"
+              :state="profileForm"
+              class="space-y-6"
+              @submit="updateProfile"
+            >
+              <UFormField label="Telefono numeris" name="phoneNumber">
+                <UInput
+                  v-model="profileForm.phoneNumber"
+                  placeholder="+370 600 00000"
+                  icon="i-heroicons-phone"
+                  size="lg"
+                  class="w-full"
+                />
+              </UFormField>
+
+              <UButton
+                type="submit"
+                block
+                size="lg"
+                color="primary"
+                variant="soft"
+                :loading="isProfileSubmitting"
+                :disabled="isProfileSubmitting"
+                class="font-semibold"
+              >
+                Atnaujinti profilį
+              </UButton>
+            </UForm>
           </div>
 
           <!-- Password Section -->
