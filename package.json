@@ -24,6 +24,7 @@
   "private": true,
   "scripts": {
     "build": "nuxt build",
+    "vercel-build": "prisma generate && prisma migrate deploy && nuxt build",
     "lint": "eslint --fix",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
