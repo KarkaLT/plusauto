@@ -1,5 +1,6 @@
 import prisma from '~/lib/prisma'
 import { z } from 'zod'
+import type { User } from '~/server/types/User'
 import type { Prisma } from '@prisma/client'
 
 const listingCreateSchema = z.object({
@@ -7,14 +8,27 @@ const listingCreateSchema = z.object({
   description: z.string().optional(),
   price: z.number().min(0, 'Price is required and must be a positive number'),
   categoryId: z.string().min(1, 'Category ID is required'),
-  // attributes: object keyed by attribute key -> value
   attributes: z.record(z.string(), z.unknown()).optional(),
+  images: z.array(z.string()).optional(),
 })
 
 // Create a new listing
 export default defineEventHandler(async (event) => {
   // Require user to be logged in
-  const user = await requireUserSession(event)
+  const { user } = await requireUserSession(event)
+  const extendedUser = user as User
+
+  // Verify user exists in database (session might be stale after DB reset)
+  const dbUser = await prisma.user.findUnique({
+    where: { id: extendedUser.id },
+  })
+
+  if (!dbUser) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: 'User session is invalid. Please log in again.',
+    })
+  }
 
   const body = await readBody(event)
 
@@ -159,7 +173,7 @@ export default defineEventHandler(async (event) => {
     const listing = await tx.listing.create({
       data: {
         title: result.data.title,
-        authorId: user.id,
+        authorId: extendedUser.id,
         description: result.data.description,
         price: result.data.price,
         categoryId: result.data.categoryId,
@@ -174,6 +188,16 @@ export default defineEventHandler(async (event) => {
 
     if (attrRows.length)
       await tx.listingAttribute.createMany({ data: attrRows, skipDuplicates: true })
+
+    // Create images
+    if (result.data.images && result.data.images.length > 0) {
+      await tx.images.createMany({
+        data: result.data.images.map((url) => ({
+          url,
+          listingId: listing.id,
+        })),
+      })
+    }
 
     return listing
   })

@@ -1,6 +1,7 @@
 import { getValidatedRouterParams } from 'h3'
 import prisma from '~/lib/prisma'
 import { z } from 'zod'
+import type { User } from '~/server/types/User'
 
 const listingIdSchema = z.object({
   id: z.string().min(1, 'ID is required'),
@@ -15,7 +16,8 @@ const listingUpdateSchema = z.object({
 // Update a listing
 export default defineEventHandler(async (event) => {
   // Require user to be logged in
-  const user = await requireUserSession(event)
+  const { user } = await requireUserSession(event)
+  const extendedUser = user as User
 
   const { id } = await getValidatedRouterParams(event, listingIdSchema.parse)
   const body = await readBody(event)
@@ -42,7 +44,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Check if user owns the listing
-  if (listing.authorId !== user.id) {
+  if (listing.authorId !== extendedUser.id) {
     throw createError({
       statusCode: 403,
       statusMessage: 'You can only edit your own listings',

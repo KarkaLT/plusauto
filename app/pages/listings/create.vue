@@ -45,6 +45,7 @@ const selectedCategory = ref<CategorySelectItem | undefined>(undefined)
 const categoryAttributes = ref<AttributeDefinition[]>([])
 const attributeErrors = ref<Record<string, string | null>>({})
 const touchedFields = ref<Record<string, boolean>>({})
+const files = ref<File[]>([])
 
 const form = ref({
   title: '',
@@ -52,6 +53,7 @@ const form = ref({
   price: null as number | null,
   categoryId: null as string | null,
   attributes: {} as Record<string, unknown>,
+  images: [] as string[],
 })
 
 // --- Data Fetching ---
@@ -141,7 +143,46 @@ function handleFieldBlur(key: string) {
   validateField(key)
 }
 
+async function handleFileChange() {
+  if (!files.value.length) return
+
+  const filesToUpload = []
+  for (const file of files.value) {
+    const reader = new FileReader()
+    const p = new Promise<string>((resolve, reject) => {
+      reader.onload = (e) => resolve(e.target?.result as string)
+      reader.onerror = reject
+    })
+    reader.readAsDataURL(file)
+    const content = await p
+    filesToUpload.push({
+      name: file.name,
+      content: content,
+      type: file.type,
+      size: String(file.size),
+      lastModified: String(file.lastModified),
+    })
+  }
+
+  try {
+    const { urls } = await $fetch<{ urls: string[] }>('/api/upload', {
+      method: 'POST',
+      body: { files: filesToUpload },
+    })
+    form.value.images.push(...urls)
+  } catch (err) {
+    console.error('Upload failed:', err)
+    // TODO: Show error notification
+  } finally {
+    files.value = [] // Reset input
+  }
+}
+
+const { user } = useUserSession()
+
 async function submit() {
+  console.log(user.value)
+
   if (loading.value) return
   loading.value = true
 
@@ -162,6 +203,7 @@ async function submit() {
       price: form.value.price,
       categoryId: form.value.categoryId,
       attributes: cleanAttributes,
+      images: form.value.images,
     }
 
     const created = await $fetch<{ id?: string }>('/api/listing/new', {
@@ -352,6 +394,50 @@ function parseValueForSubmit(def: AttributeDefinition, raw: unknown): unknown {
                   class="w-full"
                 />
               </UFormField>
+            </div>
+          </div>
+        </div>
+
+        <hr class="border-gray-200 dark:border-gray-800 my-6" >
+
+        <!-- 1.5 Nuotraukos -->
+        <div>
+          <h2
+            class="text-lg font-semibold text-gray-900 dark:text-white mb-5 flex items-center gap-2"
+          >
+            <UIcon name="i-heroicons-photo" class="w-5 h-5 text-primary-500" />
+            Nuotraukos
+          </h2>
+
+          <div class="space-y-4">
+            <div class="flex items-center justify-center w-full">
+              <UFileUpload
+                v-model="files"
+                multiple
+                accept="image/*"
+                :ui="{ wrapper: 'w-full' }"
+                label="Spauskite čia arba įkelkite nuotraukas"
+                icon="i-heroicons-cloud-arrow-up"
+                @change="handleFileChange"
+              />
+            </div>
+
+            <!-- Previews -->
+            <div v-if="form.images.length" class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div
+                v-for="(img, index) in form.images"
+                :key="index"
+                class="relative group aspect-video bg-gray-100 rounded-lg overflow-hidden"
+              >
+                <img :src="img" class="w-full h-full object-cover" >
+                <button
+                  type="button"
+                  class="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                  @click="form.images.splice(index, 1)"
+                >
+                  <UIcon name="i-heroicons-x-mark" class="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
         </div>

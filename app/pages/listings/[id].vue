@@ -1,64 +1,226 @@
 <script setup lang="ts">
 const route = useRoute()
 const _id = route.params.id
+const { loggedIn, user } = useUserSession()
 
-// Mock data for the listing
-const listing = ref({
-  id: 1,
-  title: 'Audi A6 S-Line Quattro',
-  price: 18500,
-  images: [
-    'https://images.unsplash.com/photo-1603584173870-7f23fdae1b7a?q=80&w=1200&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1542282088-fe8426682b8f?q=80&w=1200&auto=format&fit=crop',
-    'https://images.unsplash.com/photo-1503376763036-066120622c74?q=80&w=1200&auto=format&fit=crop',
-  ],
-  year: 2018,
-  fuelType: 'Dyzelinas',
-  gearbox: 'Automatinė',
-  power: '140 kW',
-  mileage: 185000,
-  city: 'Vilnius',
-  description:
-    'Parduodamas puikios būklės automobilis. Visi aptarnavimai atlikti laiku. S-Line apdaila, Matrix LED žibintai, odinis salonas, navigacija, šildomos sėdynės.',
-  features: [
-    'Klimato kontrolė',
-    'Odinės sėdynės',
-    'Šildomos sėdynės',
-    'Navigacija',
-    'LED žibintai',
-    'Parkavimo davikliai',
-    'Galinio vaizdo kamera',
-    'Autopilotas',
-  ],
-  seller: {
-    name: 'Jonas Jonaitis',
-    phone: '+370 600 00000',
-    email: 'jonas@example.com',
+interface ListingResponse {
+  id: string
+  title: string
+  price: number
+  description: string
+  images: { url: string }[]
+  attributes: {
+    value: string | number | boolean
+    attribute: {
+      name: string
+      key: string
+      type: string
+    }
+  }[]
+  author: {
+    name: string | null
+    email: string
+    phoneNumber: string | null
+  }
+  category: {
+    name: string
+  }
+}
+
+interface CommentResponse {
+  id: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  authorId: string
+  author: {
+    id: string
+    name: string | null
+  }
+  replies?: CommentResponse[]
+}
+
+interface DisplayComment {
+  id: string
+  author: string
+  authorId: string
+  text: string
+  date: string
+  isEditing?: boolean
+  replies?: DisplayComment[]
+}
+
+const { data: listing, error } = await useFetch(`/api/listing/${_id}`, {
+  transform: (data: ListingResponse) => {
+    // Separate attributes into features (boolean true) and specifications (others)
+    const features: string[] = []
+    const specifications: { label: string; value: string | number }[] = []
+
+    data.attributes.forEach((attr) => {
+      if (attr.attribute.type === 'BOOLEAN') {
+        if (attr.value === true) {
+          features.push(attr.attribute.name)
+        }
+      } else {
+        // For non-boolean attributes, add to specifications
+        // You might want to format dates or other types here if needed
+        specifications.push({
+          label: attr.attribute.name,
+          value: attr.value as string | number,
+        })
+      }
+    })
+
+    return {
+      ...data,
+      images: data.images.map((img) => img.url),
+      features,
+      specifications,
+      seller: {
+        name: data.author.name,
+        phone: data.author.phoneNumber,
+        email: data.author.email,
+      },
+    }
   },
 })
 
+if (error.value) {
+  throw createError({
+    statusCode: 404,
+    statusMessage: 'Listing not found',
+    fatal: true,
+  })
+}
+
 const activeImage = ref(0)
 const comment = ref('')
+const isPosting = ref(false)
+const editingContent = ref<{ [key: string]: string }>({})
+const isDeleteModalOpen = ref(false)
+const commentToDelete = ref<string | null>(null)
 
-const comments = ref([
-  { id: 1, author: 'Petras', text: 'Ar kaina derinama?', date: '2024-03-15' },
-  { id: 2, author: 'Antanas', text: 'Kada buvo keisti tepalai?', date: '2024-03-14' },
-])
+// Fetch comments from API
+const {
+  data: rawCommentsData,
+  refresh: refreshComments,
+  pending: loadingComments,
+} = await useFetch<CommentResponse[]>(`/api/comment/all`, {
+  query: { listingId: _id },
+})
 
-function addComment() {
-  if (!comment.value) return
-  comments.value.push({
-    id: comments.value.length + 1,
-    author: 'Aš',
-    text: comment.value,
-    date: new Date().toISOString().split('T')[0]!,
+function transformComment(comment: CommentResponse): DisplayComment {
+  return {
+    id: comment.id,
+    author: comment.author.name || 'Anonimas',
+    authorId: comment.authorId,
+    text: comment.content,
+    date: formatDate(comment.createdAt),
+    replies: comment.replies?.map(transformComment),
+  }
+}
+
+function formatDate(dateString: string): string {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('lt-LT', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   })
-  comment.value = ''
+}
+
+const comments = computed<DisplayComment[]>(() => {
+  if (!rawCommentsData.value) return []
+  return rawCommentsData.value.map(transformComment)
+})
+
+async function addComment() {
+  if (!comment.value.trim()) return
+  if (!loggedIn.value) {
+    navigateTo('/auth/login')
+    return
+  }
+
+  isPosting.value = true
+  try {
+    await $fetch('/api/comment/new', {
+      method: 'POST',
+      body: {
+        listingId: _id,
+        content: comment.value,
+      },
+    })
+
+    comment.value = ''
+    await refreshComments()
+  } catch (err) {
+    console.error('Failed to post comment:', err)
+    alert('Nepavyko paskelbti komentaro. Bandykite dar kartą.')
+  } finally {
+    isPosting.value = false
+  }
+}
+
+function startEditing(commentId: string, currentText: string) {
+  editingContent.value[commentId] = currentText
+}
+
+function cancelEditing(commentId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+  delete editingContent.value[commentId]
+}
+
+async function saveEdit(commentId: string) {
+  const newContent = editingContent.value[commentId]?.trim()
+  if (!newContent) return
+
+  try {
+    await $fetch(`/api/comment/${commentId}`, {
+      method: 'PATCH',
+      body: {
+        content: newContent,
+      },
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
+    delete editingContent.value[commentId]
+    await refreshComments()
+  } catch (err) {
+    console.error('Failed to update comment:', err)
+    alert('Nepavyko atnaujinti komentaro. Bandykite dar kartą.')
+  }
+}
+
+async function deleteComment(commentId: string) {
+  commentToDelete.value = commentId
+  isDeleteModalOpen.value = true
+}
+
+async function confirmDelete() {
+  if (!commentToDelete.value) return
+
+  try {
+    await $fetch(`/api/comment/${commentToDelete.value}`, {
+      method: 'DELETE',
+    })
+
+    await refreshComments()
+  } catch (err) {
+    console.error('Failed to delete comment:', err)
+    alert('Nepavyko ištrinti komentaro. Bandykite dar kartą.')
+  } finally {
+    isDeleteModalOpen.value = false
+    commentToDelete.value = null
+  }
+}
+
+function isOwnComment(authorId: string): boolean {
+  return loggedIn.value && user.value?.id === authorId
 }
 </script>
 
 <template>
-  <UContainer class="py-8">
+  <UContainer v-if="listing" class="py-8">
     <!-- Breadcrumbs -->
     <div class="text-sm text-gray-500 dark:text-gray-400 mb-6 flex items-center gap-2">
       <NuxtLink to="/" class="hover:text-primary-600 dark:hover:text-primary-400"
@@ -107,7 +269,7 @@ function addComment() {
         </div>
 
         <!-- Description -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div v-if="listing.description" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
           <h2 class="text-xl font-bold mb-4">Aprašymas</h2>
           <p class="text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line">
             {{ listing.description }}
@@ -115,7 +277,10 @@ function addComment() {
         </div>
 
         <!-- Features -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+        <div
+          v-if="listing.features.length > 0"
+          class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6"
+        >
           <h2 class="text-xl font-bold mb-4">Ypatybės</h2>
           <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div
@@ -136,27 +301,97 @@ function addComment() {
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
           <h2 class="text-xl font-bold mb-6">Komentarai</h2>
 
-          <div class="space-y-6 mb-8">
+          <!-- Loading state -->
+          <div v-if="loadingComments" class="flex justify-center py-8">
+            <UIcon name="i-heroicons-arrow-path" class="w-6 h-6 animate-spin text-primary-600" />
+          </div>
+
+          <!-- Comments list -->
+          <div v-else-if="comments.length > 0" class="space-y-6 mb-8">
             <div v-for="c in comments" :key="c.id" class="flex gap-4">
               <UAvatar :alt="c.author" size="sm" />
-              <div class="flex-grow">
+              <div class="grow">
                 <div class="flex items-center justify-between mb-1">
                   <span class="font-semibold">{{ c.author }}</span>
-                  <span class="text-xs text-gray-500">{{ c.date }}</span>
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs text-gray-500">{{ c.date }}</span>
+                    <!-- Edit/Delete buttons for own comments -->
+                    <div v-if="isOwnComment(c.authorId)" class="flex gap-1">
+                      <UButton
+                        v-if="!editingContent[c.id]"
+                        size="xs"
+                        color="neutral"
+                        variant="ghost"
+                        icon="i-heroicons-pencil"
+                        @click="startEditing(c.id, c.text)"
+                      />
+                      <UButton
+                        v-if="!editingContent[c.id]"
+                        size="xs"
+                        color="error"
+                        variant="ghost"
+                        icon="i-heroicons-trash"
+                        @click="deleteComment(c.id)"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <p class="text-gray-600 dark:text-gray-300 text-sm">{{ c.text }}</p>
+
+                <!-- Display mode -->
+                <p v-if="!editingContent[c.id]" class="text-gray-600 dark:text-gray-300 text-sm">
+                  {{ c.text }}
+                </p>
+
+                <!-- Edit mode -->
+                <div v-else class="space-y-2">
+                  <UTextarea v-model="editingContent[c.id]" :rows="3" class="w-full" />
+                  <div class="flex gap-2">
+                    <UButton size="xs" color="primary" @click="saveEdit(c.id)"> Išsaugoti </UButton>
+                    <UButton size="xs" color="neutral" variant="ghost" @click="cancelEditing(c.id)">
+                      Atšaukti
+                    </UButton>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="flex gap-4">
-            <UAvatar alt="Aš" size="sm" />
-            <div class="flex-grow space-y-2">
-              <UTextarea v-model="comment" placeholder="Rašyti komentarą..." :rows="3" />
+          <!-- Empty state -->
+          <div v-else class="text-center py-8 text-gray-500 dark:text-gray-400">
+            Dar nėra komentarų. Būkite pirmas!
+          </div>
+
+          <!-- Comment form (only if logged in) -->
+          <div v-if="loggedIn" class="flex gap-4 mt-6">
+            <UAvatar :alt="user?.name || 'Aš'" size="sm" />
+            <div class="grow space-y-2">
+              <UTextarea
+                v-model="comment"
+                placeholder="Rašyti komentarą..."
+                :rows="3"
+                class="w-full"
+              />
               <div class="flex justify-end">
-                <UButton color="primary" @click="addComment"> Skelbti </UButton>
+                <UButton
+                  color="primary"
+                  :loading="isPosting"
+                  :disabled="!comment.trim() || isPosting"
+                  @click="addComment"
+                >
+                  Skelbti
+                </UButton>
               </div>
             </div>
+          </div>
+
+          <!-- Login prompt if not logged in -->
+          <div v-else class="text-center py-6 border-t border-gray-200 dark:border-gray-700 mt-6">
+            <p class="text-gray-600 dark:text-gray-400 mb-4">
+              Norite komentuoti? Prisijunkite arba užsiregistruokite.
+            </p>
+            <NuxtLink to="/auth/login">
+              <UButton color="primary"> Prisijungti </UButton>
+            </NuxtLink>
           </div>
         </div>
       </div>
@@ -170,30 +405,14 @@ function addComment() {
             {{ listing.price }} €
           </div>
 
-          <div class="space-y-4 mb-8">
-            <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-              <span class="text-gray-500 dark:text-gray-400">Metai</span>
-              <span class="font-medium">{{ listing.year }}</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-              <span class="text-gray-500 dark:text-gray-400">Kuras</span>
-              <span class="font-medium">{{ listing.fuelType }}</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-              <span class="text-gray-500 dark:text-gray-400">Pavarų dėžė</span>
-              <span class="font-medium">{{ listing.gearbox }}</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-              <span class="text-gray-500 dark:text-gray-400">Galia</span>
-              <span class="font-medium">{{ listing.power }}</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-              <span class="text-gray-500 dark:text-gray-400">Rida</span>
-              <span class="font-medium">{{ listing.mileage }} km</span>
-            </div>
-            <div class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700">
-              <span class="text-gray-500 dark:text-gray-400">Miestas</span>
-              <span class="font-medium">{{ listing.city }}</span>
+          <div v-if="listing.specifications.length > 0" class="space-y-4 mb-8">
+            <div
+              v-for="spec in listing.specifications"
+              :key="spec.label"
+              class="flex justify-between py-2 border-b border-gray-100 dark:border-gray-700"
+            >
+              <span class="text-gray-500 dark:text-gray-400">{{ spec.label }}</span>
+              <span class="font-medium">{{ spec.value }}</span>
             </div>
           </div>
 
@@ -205,9 +424,48 @@ function addComment() {
             <div class="text-sm text-gray-500 dark:text-gray-300">{{ listing.seller.email }}</div>
           </div>
 
-          <UButton block size="lg" color="primary" icon="i-heroicons-phone"> Skambinti </UButton>
+          <UButton
+            v-if="listing.seller.phone"
+            block
+            size="lg"
+            color="primary"
+            icon="i-heroicons-phone"
+            :to="`tel:${listing.seller.phone}`"
+            target="_blank"
+          >
+            Skambinti
+          </UButton>
+          <UButton
+            v-if="listing.seller.email"
+            block
+            size="lg"
+            color="primary"
+            icon="i-heroicons-envelope"
+            :to="`mailto:${listing.seller.email}`"
+            target="_blank"
+          >
+            Siųsti el. laišką
+          </UButton>
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <UModal v-model:open="isDeleteModalOpen">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-bold mb-4">Ištrinti komentarą?</h3>
+          <p class="text-gray-600 dark:text-gray-300 mb-6">
+            Ar tikrai norite ištrinti šį komentarą? Šio veiksmo negalima atšaukti.
+          </p>
+          <div class="flex justify-end gap-3">
+            <UButton color="neutral" variant="ghost" @click="isDeleteModalOpen = false">
+              Atšaukti
+            </UButton>
+            <UButton color="error" @click="confirmDelete"> Ištrinti </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
   </UContainer>
 </template>

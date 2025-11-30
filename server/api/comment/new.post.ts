@@ -1,5 +1,6 @@
 import prisma from '~/lib/prisma'
 import { z } from 'zod'
+import type { User } from '~/server/types/User'
 
 const commentCreateSchema = z.object({
   listingId: z.string().min(1, 'Listing ID is required'),
@@ -10,7 +11,8 @@ const commentCreateSchema = z.object({
 // Create a new comment
 export default defineEventHandler(async (event) => {
   // Require user to be logged in
-  const user = await requireUserSession(event)
+  const { user } = await requireUserSession(event)
+  const extendedUser = user as User
 
   const body = await readBody(event)
 
@@ -46,7 +48,7 @@ export default defineEventHandler(async (event) => {
   return prisma.comment.create({
     data: {
       listingId: result.data.listingId,
-      authorId: user.id,
+      authorId: extendedUser.id,
       content: result.data.content,
       parentId: result.data.parentId,
     },

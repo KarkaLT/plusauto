@@ -1,6 +1,7 @@
 import { getValidatedRouterParams } from 'h3'
 import prisma from '~/lib/prisma'
 import { z } from 'zod'
+import type { User } from '~/server/types/User'
 
 const commentIdSchema = z.object({
   id: z.string().min(1, 'ID is required'),
@@ -13,7 +14,8 @@ const commentUpdateSchema = z.object({
 // Update a comment
 export default defineEventHandler(async (event) => {
   // Require user to be logged in
-  const user = await requireUserSession(event)
+  const { user } = await requireUserSession(event)
+  const extendedUser = user as User
 
   const { id } = await getValidatedRouterParams(event, commentIdSchema.parse)
   const body = await readBody(event)
@@ -40,7 +42,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // Check if user owns the comment
-  if (comment.authorId !== user.id) {
+  if (comment.authorId !== extendedUser.id) {
     throw createError({
       statusCode: 403,
       statusMessage: 'You can only edit your own comments',

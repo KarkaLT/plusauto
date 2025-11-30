@@ -91,13 +91,6 @@ function handleGoogleLogin() {
               </UFormField>
             </div>
 
-            <div class="flex items-center justify-between">
-              <UCheckbox
-                label="Prisiminti mane"
-                :ui="{ label: 'text-sm text-gray-600 dark:text-gray-400' }"
-              />
-            </div>
-
             <UButton
               type="submit"
               block

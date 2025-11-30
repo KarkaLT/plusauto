@@ -10,14 +10,32 @@ const listingGetSchema = z.object({
 export default defineEventHandler(async (event) => {
   const { id } = await getValidatedRouterParams(event, listingGetSchema.parse)
 
-  const category = await prisma.listing.findUnique({ where: { id } })
+  const listing = await prisma.listing.findUnique({
+    where: { id },
+    include: {
+      images: true,
+      attributes: {
+        include: {
+          attribute: true,
+        },
+      },
+      author: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
+      category: true,
+    },
+  })
 
-  if (!category) {
+  if (!listing) {
     throw createError({
       statusCode: 404,
       statusMessage: 'Listing not found',
     })
   }
 
-  return category
+  return listing
 })
