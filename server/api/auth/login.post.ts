@@ -11,7 +11,21 @@ export default defineEventHandler(async (event) => {
 
   const user = await prisma.user.findUnique({ where: { email } })
 
-  if (!user || !(await verifyPassword(user.password, password))) {
+  if (!user) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: 'Neteisingas el. paštas arba slaptažodis',
+    })
+  }
+
+  if (!user.password) {
+    throw createError({
+      statusCode: 401,
+      statusMessage: 'Šiai paskyrai naudojamas Google prisijungimas',
+    })
+  }
+
+  if (!(await verifyPassword(user.password, password))) {
     throw createError({
       statusCode: 401,
       statusMessage: 'Neteisingas el. paštas arba slaptažodis',
@@ -20,10 +34,12 @@ export default defineEventHandler(async (event) => {
 
   await setUserSession(event, {
     user: {
-      name: user.name ?? 'User',
       id: user.id,
-      role: user.role,
       email: user.email,
+      name: user.name ?? '',
+      picture: user.picture ?? undefined,
+      googleId: user.googleId ?? undefined,
+      role: user.role,
     },
   })
   return { statusMessage: 'Login successful' }
