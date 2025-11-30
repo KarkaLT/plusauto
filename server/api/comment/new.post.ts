@@ -3,8 +3,8 @@ import { z } from 'zod'
 import type { User } from '~/server/types/User'
 
 const commentCreateSchema = z.object({
-  listingId: z.string().min(1, 'Listing ID is required'),
-  content: z.string().min(1, 'Content is required'),
+  listingId: z.string().min(1, 'Skelbimo ID yra privalomas'),
+  content: z.string().min(1, 'Turinys yra privalomas'),
   parentId: z.string().optional(),
 })
 
@@ -21,7 +21,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Validation Error',
+      statusMessage: 'Validacijos klaida',
       data: z.treeifyError(result.error),
     })
   }
@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
   if (!(await prisma.listing.findUnique({ where: { id: result.data.listingId } }))) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Listing not found',
+      statusMessage: 'Skelbimas nerastas',
     })
   }
 
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
   ) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Parent comment not found',
+      statusMessage: 'Tėvinis komentaras nerastas',
     })
   }
 

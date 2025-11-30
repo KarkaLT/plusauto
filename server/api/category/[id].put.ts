@@ -4,11 +4,11 @@ import { z } from 'zod'
 import { Role } from '@prisma/client'
 
 const categoryIdSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 const categoryUpdateSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
+  name: z.string().min(1, 'Pavadinimas yra privalomas'),
   description: z.string().optional(),
 })
 
@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
   if (user.role !== Role.ADMIN && user.role !== Role.MODERATOR) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'Only admins and moderators can update categories',
+      statusMessage: 'Tik administratoriai gali atnaujinti kategorijas',
     })
   }
 
@@ -32,7 +32,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Validation Error',
+      statusMessage: 'Validacijos klaida',
       data: z.treeifyError(result.error),
     })
   }
@@ -41,7 +41,7 @@ export default defineEventHandler(async (event) => {
   if (!(await prisma.category.findUnique({ where: { id: id } }))) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Category not found',
+      statusMessage: 'Kategorija nerasta',
     })
   }
 
@@ -56,7 +56,7 @@ export default defineEventHandler(async (event) => {
   if (existingCategory) {
     throw createError({
       statusCode: 409,
-      statusMessage: 'Another category with this name already exists',
+      statusMessage: 'Kita kategorija su tokiu pavadinimu jau egzistuoja',
     })
   }
 

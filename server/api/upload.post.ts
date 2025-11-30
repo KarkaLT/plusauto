@@ -9,7 +9,7 @@ export default defineEventHandler(async (event) => {
   if (!files || files.length === 0) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'No files uploaded',
+      statusMessage: 'Nėra įkeltų failų',
     })
   }
 

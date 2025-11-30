@@ -3,7 +3,7 @@ import prisma from '~/lib/prisma'
 import { z } from 'zod'
 
 const categoryGetSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 // Retrieve one category by ID
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   if (!category) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Category not found',
+      statusMessage: 'Kategorija nerasta',
     })
   }
 

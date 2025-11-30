@@ -31,7 +31,7 @@ model Images {
   id        String  @id @default(cuid(2))
   url       String
   listingId String
-  listing   Listing @relation(fields: [listingId], references: [id])
+  listing   Listing @relation(fields: [listingId], references: [id], onDelete: Cascade)
 }
 
 model Category {
@@ -63,7 +63,7 @@ model Comment {
   parentId  String? // For nested comments (replies)
   parent    Comment?  @relation("CommentToComment", fields: [parentId], references: [id], onDelete: Cascade)
   listingId String
-  listing   Listing   @relation(fields: [listingId], references: [id])
+  listing   Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
   authorId  String
   author    User      @relation(fields: [authorId], references: [id])
   content   String

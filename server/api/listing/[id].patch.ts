@@ -4,13 +4,13 @@ import { z } from 'zod'
 import type { User } from '~/server/types/User'
 
 const listingIdSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 const listingUpdateSchema = z.object({
-  title: z.string().min(1, 'Title is required').optional(),
+  title: z.string().min(1, 'Pavadinimas yra privalomas').optional(),
   description: z.string().optional(),
-  price: z.number().min(0, 'Price is required and must be a positive number').optional(),
+  price: z.number().min(0, 'Kaina yra privaloma ir turi būti teigiamas skaičius').optional(),
 })
 
 // Update a listing
@@ -28,7 +28,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Validation Error',
+      statusMessage: 'Validacijos klaida',
       data: z.treeifyError(result.error),
     })
   }
@@ -39,7 +39,7 @@ export default defineEventHandler(async (event) => {
   if (!listing) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Listing not found',
+      statusMessage: 'Skelbimas nerastas',
     })
   }
 
@@ -47,7 +47,7 @@ export default defineEventHandler(async (event) => {
   if (listing.authorId !== extendedUser.id) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'You can only edit your own listings',
+      statusMessage: 'Galite redaguoti tik savo skelbimą',
     })
   }
 

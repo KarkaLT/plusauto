@@ -1,8 +1,33 @@
 <script setup lang="ts">
-definePageMeta({
-  layout: 'default',
-  middleware: 'auth', // Should be admin middleware
-})
+interface Listing {
+  id: string
+  title: string
+  author: {
+    name: string | null
+    email: string
+  }
+  createdAt: string
+}
+
+interface User {
+  id: string
+  name: string | null
+  email: string
+  role: string
+}
+
+interface Comment {
+  id: string
+  content: string
+  author: {
+    name: string | null
+    email: string
+  }
+  listing: {
+    title: string
+  }
+  createdAt: string
+}
 
 const items = [
   {
@@ -22,47 +47,119 @@ const items = [
   },
 ]
 
-// Mock Data
-const listings = ref([
-  { id: 1, title: 'Audi A6', user: 'Jonas', status: 'Active', date: '2024-03-15' },
-  { id: 2, title: 'BMW 530d', user: 'Petras', status: 'Pending', date: '2024-03-14' },
-])
+// Fetch real data
+const { data: listings, refresh: refreshListings } = await useAsyncData<Listing[]>('listings', () =>
+  $fetch('/api/listing/all')
+)
+const { data: users, refresh: refreshUsers } = await useAsyncData<User[]>('users', () =>
+  $fetch('/api/user/all')
+)
+const { data: comments, refresh: refreshComments } = await useAsyncData<Comment[]>('comments', () =>
+  $fetch('/api/comment/all')
+)
 
-const users = ref([
-  { id: 1, name: 'Jonas Jonaitis', email: 'jonas@example.com', role: 'User' },
-  { id: 2, name: 'Admin', email: 'admin@plusauto.lt', role: 'Admin' },
-])
+const toast = useToast()
 
-const comments = ref([
-  { id: 1, text: 'Ar kaina derinama?', user: 'Petras', listing: 'Audi A6', date: '2024-03-15' },
-  { id: 2, text: 'Keitimas domina?', user: 'Antanas', listing: 'BMW 530d', date: '2024-03-14' },
-])
+console.log('Comments:', comments.value)
+console.log('Listings:', listings.value)
+console.log('Users:', users.value)
 
-const columnsListings = [
-  { key: 'id', label: 'ID' },
-  { key: 'title', label: 'Pavadinimas' },
-  { key: 'user', label: 'Vartotojas' },
-  { key: 'status', label: 'Būsena' },
-  { key: 'actions' },
+// Computed rows for typing
+const listingsRows = computed<Listing[]>(() => listings.value || [])
+const usersRows = computed<User[]>(() => users.value || [])
+const commentsRows = computed<Comment[]>(() => comments.value || [])
+
+type ColumnBase = {
+  accessorKey?: string
+  id?: string
+  header: string
+}
+
+const columnsListings: ColumnBase[] = [
+  { accessorKey: 'id', header: 'ID' },
+  { accessorKey: 'title', header: 'Pavadinimas' },
+  { accessorKey: 'author', header: 'Vartotojas' },
+  { accessorKey: 'createdAt', header: 'Data' },
+  { id: 'actions', header: 'Veiksmai' },
 ]
-const columnsUsers = [
-  { key: 'id', label: 'ID' },
-  { key: 'name', label: 'Vardas' },
-  { key: 'email', label: 'El. paštas' },
-  { key: 'role', label: 'Rolė' },
-  { key: 'actions' },
+const columnsUsers: ColumnBase[] = [
+  { accessorKey: 'id', header: 'ID' },
+  { accessorKey: 'name', header: 'Vardas' },
+  { accessorKey: 'email', header: 'El. paštas' },
+  { accessorKey: 'role', header: 'Rolė' },
+  { id: 'actions', header: 'Veiksmai' },
 ]
-const columnsComments = [
-  { key: 'id', label: 'ID' },
-  { key: 'text', label: 'Komentaras' },
-  { key: 'user', label: 'Autorius' },
-  { key: 'listing', label: 'Skelbimas' },
-  { key: 'actions' },
+const columnsComments: ColumnBase[] = [
+  { accessorKey: 'id', header: 'ID' },
+  { accessorKey: 'content', header: 'Komentaras' },
+  { accessorKey: 'author', header: 'Autorius' },
+  { accessorKey: 'listing', header: 'Skelbimas' },
+  { id: 'actions', header: 'Veiksmai' },
 ]
+async function deleteItem(type: 'listing' | 'user' | 'comment', id: string) {
+  const actions: Record<
+    'listing' | 'user' | 'comment',
+    {
+      url: (id: string) => string
+      refresh: () => Promise<void>
+      successDescription: string
+    }
+  > = {
+    listing: {
+      url: (id) => `/api/listing/${id}`,
+      refresh: refreshListings,
+      successDescription: 'Skelbimas buvo ištrintas.',
+    },
+    user: {
+      url: (id) => `/api/user/${id}`,
+      refresh: refreshUsers,
+      successDescription: 'Vartotojas buvo ištrintas.',
+    },
+    comment: {
+      url: (id) => `/api/comment/${id}`,
+      refresh: refreshComments,
+      successDescription: 'Komentaras buvo ištrintas.',
+    },
+  }
 
-function deleteItem(type: string, id: number) {
-  // TODO: Implement delete logic
-  console.log(`Delete ${type} ${id}`)
+  const action = actions[type]
+
+  if (!action) {
+    toast.add({
+      title: 'Klaida',
+      description: 'Nenurodyta arba neteisinga rūšis.',
+      color: 'error',
+    })
+    return
+  }
+
+  try {
+    await $fetch(action.url(id), { method: 'DELETE' }).catch((err: unknown) => {
+      // Normalize errors coming from server or fetch
+      type HttpErrorLike = { data?: { message?: string } }
+      const message =
+        (err as HttpErrorLike)?.data?.message || (err as Error)?.message || String(err)
+      toast.add({
+        title: 'Klaida',
+        description: message || 'Įvyko klaida trinant įrašą.',
+        color: 'error',
+      })
+      throw new Error(message)
+    })
+    await action.refresh()
+    toast.add({
+      title: 'Sėkmingai ištrinta',
+      description: action.successDescription,
+      color: 'success',
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    toast.add({
+      title: 'Klaida',
+      description: message || 'Įvyko klaida trinant įrašą.',
+      color: 'error',
+    })
+  }
 }
 </script>
 
@@ -80,16 +177,29 @@ function deleteItem(type: string, id: number) {
             </div>
           </template>
 
-          <UTable :rows="listings" :columns="columnsListings">
-            <template #actions-data="{ row }">
+          <UTable :data="listingsRows" :columns="columnsListings">
+            <template #author-cell="{ row }">
+              {{ row.original.author.name }}
+            </template>
+            <template #createdAt-cell="{ row }">
+              {{ new Date(row.original.createdAt).toLocaleString() }}
+            </template>
+            <template #actions-cell="{ row }">
               <div class="flex gap-2">
-                <UButton color="gray" variant="ghost" icon="i-heroicons-pencil-square" size="xs" />
                 <UButton
-                  color="red"
+                  color="primary"
+                  variant="ghost"
+                  icon="i-heroicons-eye"
+                  size="xs"
+                  :to="`/listings/${row.original.id}`"
+                  target="_blank"
+                />
+                <UButton
+                  color="error"
                   variant="ghost"
                   icon="i-heroicons-trash"
                   size="xs"
-                  @click="deleteItem('listing', row.id)"
+                  @click="deleteItem('listing', row.original.id)"
                 />
               </div>
             </template>
@@ -106,16 +216,15 @@ function deleteItem(type: string, id: number) {
             </div>
           </template>
 
-          <UTable :rows="users" :columns="columnsUsers">
-            <template #actions-data="{ row }">
+          <UTable :data="usersRows" :columns="columnsUsers">
+            <template #actions-cell="{ row }">
               <div class="flex gap-2">
-                <UButton color="gray" variant="ghost" icon="i-heroicons-pencil-square" size="xs" />
                 <UButton
-                  color="red"
+                  color="error"
                   variant="ghost"
                   icon="i-heroicons-trash"
                   size="xs"
-                  @click="deleteItem('user', row.id)"
+                  @click="deleteItem('user', row.original.id)"
                 />
               </div>
             </template>
@@ -132,15 +241,25 @@ function deleteItem(type: string, id: number) {
             </div>
           </template>
 
-          <UTable :rows="comments" :columns="columnsComments">
-            <template #actions-data="{ row }">
+          <UTable :data="commentsRows" :columns="columnsComments">
+            <template #author-cell="{ row }">
+              {{
+                (row as unknown as Comment).author?.name ||
+                (row as unknown as Comment).author?.email ||
+                'Unknown'
+              }}
+            </template>
+            <template #listing-cell="{ row }">
+              {{ (row as unknown as Comment).listing?.title || 'Unknown' }}
+            </template>
+            <template #actions-cell="{ row }">
               <div class="flex gap-2">
                 <UButton
-                  color="red"
+                  color="error"
                   variant="ghost"
                   icon="i-heroicons-trash"
                   size="xs"
-                  @click="deleteItem('comment', row.id)"
+                  @click="deleteItem('comment', row.original.id)"
                 />
               </div>
             </template>

@@ -9,13 +9,13 @@ export default defineEventHandler(async (event) => {
 
   const path = getRouterParam(event, 'path')
   if (!path) {
-    throw createError({ statusCode: 404, statusMessage: 'Not Found' })
+    throw createError({ statusCode: 404, statusMessage: 'Nerasta' })
   }
 
   // Get MOUNT from env
   const mount = process.env.MOUNT
   if (!mount) {
-    throw createError({ statusCode: 500, statusMessage: 'MOUNT not configured' })
+    throw createError({ statusCode: 500, statusMessage: 'MOUNT nėra sukonfigūruotas' })
   }
 
   const filePath = join(mount, path)
@@ -43,6 +43,6 @@ export default defineEventHandler(async (event) => {
 
     return file
   } catch {
-    throw createError({ statusCode: 404, statusMessage: 'File not found' })
+    throw createError({ statusCode: 404, statusMessage: 'Failas nerastas' })
   }
 })

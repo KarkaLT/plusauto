@@ -3,7 +3,7 @@ import prisma from '~/lib/prisma'
 import { z } from 'zod'
 
 const listingGetSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 // Retrieve one listing by ID
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
   if (!listing) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Listing not found',
+      statusMessage: 'Skelbimas nerastas',
     })
   }
 

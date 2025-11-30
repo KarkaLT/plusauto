@@ -3,7 +3,7 @@ import prisma from '~/lib/prisma'
 import { z } from 'zod'
 
 const commentGetSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 // Retrieve one comment by ID
@@ -15,7 +15,7 @@ export default defineEventHandler(async (event) => {
   if (!comment) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Comment not found',
+      statusMessage: 'Komentaras nerastas',
     })
   }
 

@@ -18,6 +18,7 @@ interface ListingResponse {
     }
   }[]
   author: {
+    id: string
     name: string | null
     email: string
     phoneNumber: string | null
@@ -73,6 +74,7 @@ const { data: listing, error } = await useFetch(`/api/listing/${_id}`, {
 
     return {
       ...data,
+      authorId: data.author?.id || null,
       images: data.images.map((img) => img.url),
       features,
       specifications,
@@ -99,6 +101,8 @@ const isPosting = ref(false)
 const editingContent = ref<{ [key: string]: string }>({})
 const isDeleteModalOpen = ref(false)
 const commentToDelete = ref<string | null>(null)
+const isListingDeleteModalOpen = ref(false)
+const isDeletingListing = ref(false)
 
 // Fetch comments from API
 const {
@@ -231,6 +235,35 @@ async function confirmDelete() {
 function isOwnComment(authorId: string): boolean {
   return loggedIn.value && user.value?.id === authorId
 }
+
+function canDeleteListing(): boolean {
+  // Owner or admin
+  return (
+    loggedIn.value && (user.value?.id === listing.value?.authorId || user.value?.role === 'ADMIN')
+  )
+}
+
+async function deleteListing() {
+  isListingDeleteModalOpen.value = true
+}
+
+async function confirmDeleteListing() {
+  isDeletingListing.value = true
+  try {
+    await $fetch(`/api/listing/${_id}`, { method: 'DELETE' })
+    navigateTo('/')
+  } catch (err) {
+    console.error('Failed to delete listing:', err)
+    toast.add({
+      title: 'Klaida',
+      description: 'Nepavyko ištrinti skelbimo. Bandykite dar kartą.',
+      color: 'error',
+    })
+  } finally {
+    isListingDeleteModalOpen.value = false
+    isDeletingListing.value = false
+  }
+}
 </script>
 
 <template>
@@ -250,22 +283,32 @@ function isOwnComment(authorId: string): boolean {
         <!-- Gallery -->
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
           <div class="aspect-video relative bg-gray-100 dark:bg-gray-900">
-            <img
-              :src="listing.images[activeImage]"
-              :alt="listing.title"
-              class="w-full h-full object-cover"
-            >
-            <div class="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
-              <button
-                v-for="(_, index) in listing.images"
-                :key="index"
-                class="w-2 h-2 rounded-full transition-colors"
-                :class="activeImage === index ? 'bg-white' : 'bg-white/50 hover:bg-white/80'"
-                @click="activeImage = index"
-              />
-            </div>
+            <template v-if="listing.images.length > 0">
+              <img
+                :src="listing.images[activeImage]"
+                :alt="listing.title"
+                class="w-full h-full object-cover"
+              >
+              <div class="absolute bottom-4 left-0 right-0 flex justify-center gap-2">
+                <button
+                  v-for="(_, index) in listing.images"
+                  :key="index"
+                  class="w-2 h-2 rounded-full transition-colors"
+                  :class="activeImage === index ? 'bg-white' : 'bg-white/50 hover:bg-white/80'"
+                  @click="activeImage = index"
+                />
+              </div>
+            </template>
+            <template v-else>
+              <div
+                class="w-full h-full flex flex-col items-center justify-center text-gray-400 bg-gray-200 dark:bg-gray-700"
+              >
+                <UIcon name="i-heroicons-camera" class="w-16 h-16 mb-2" />
+                <span class="text-sm font-medium">Nuotraukų nėra</span>
+              </div>
+            </template>
           </div>
-          <div class="grid grid-cols-4 gap-2 p-2">
+          <div v-if="listing.images.length > 0" class="grid grid-cols-4 gap-2 p-2">
             <button
               v-for="(img, index) in listing.images"
               :key="index"
@@ -325,10 +368,16 @@ function isOwnComment(authorId: string): boolean {
                   <span class="font-semibold">{{ c.author }}</span>
                   <div class="flex items-center gap-2">
                     <span class="text-xs text-gray-500">{{ c.date }}</span>
-                    <!-- Edit/Delete buttons for own comments -->
-                    <div v-if="isOwnComment(c.authorId)" class="flex gap-1">
+                    <!-- Edit/Delete buttons for own comments or admin -->
+                    <div
+                      v-if="
+                        (isOwnComment(c.authorId) || user?.role === 'ADMIN') &&
+                        !editingContent[c.id]
+                      "
+                      class="flex gap-1"
+                    >
                       <UButton
-                        v-if="!editingContent[c.id]"
+                        v-if="isOwnComment(c.authorId) && !editingContent[c.id]"
                         size="xs"
                         color="neutral"
                         variant="ghost"
@@ -336,7 +385,6 @@ function isOwnComment(authorId: string): boolean {
                         @click="startEditing(c.id, c.text)"
                       />
                       <UButton
-                        v-if="!editingContent[c.id]"
                         size="xs"
                         color="error"
                         variant="ghost"
@@ -457,6 +505,19 @@ function isOwnComment(authorId: string): boolean {
           >
             Siųsti el. laišką
           </UButton>
+          <div class="mt-3">
+            <UButton
+              v-if="canDeleteListing()"
+              block
+              size="lg"
+              color="error"
+              variant="outline"
+              icon="i-heroicons-trash"
+              @click="deleteListing"
+            >
+              Ištrinti skelbimą
+            </UButton>
+          </div>
         </div>
       </div>
     </div>
@@ -474,6 +535,26 @@ function isOwnComment(authorId: string): boolean {
               Atšaukti
             </UButton>
             <UButton color="error" @click="confirmDelete"> Ištrinti </UButton>
+          </div>
+        </div>
+      </template>
+    </UModal>
+
+    <!-- Delete Listing Confirmation Modal -->
+    <UModal v-model:open="isListingDeleteModalOpen">
+      <template #content>
+        <div class="p-6">
+          <h3 class="text-lg font-bold mb-4">Ištrinti skelbimą?</h3>
+          <p class="text-gray-600 dark:text-gray-300 mb-6">
+            Ar tikrai norite ištrinti šį skelbimą? Šio veiksmo negalima atšaukti.
+          </p>
+          <div class="flex justify-end gap-3">
+            <UButton color="neutral" variant="ghost" @click="isListingDeleteModalOpen = false">
+              Atšaukti
+            </UButton>
+            <UButton color="error" :loading="isDeletingListing" @click="confirmDeleteListing">
+              Ištrinti
+            </UButton>
           </div>
         </div>
       </template>

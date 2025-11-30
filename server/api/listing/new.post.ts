@@ -4,10 +4,10 @@ import type { User } from '~/server/types/User'
 import type { Prisma } from '@prisma/client'
 
 const listingCreateSchema = z.object({
-  title: z.string().min(1, 'Title is required'),
+  title: z.string().min(1, 'Pavadinimas yra privalomas'),
   description: z.string().optional(),
-  price: z.number().min(0, 'Price is required and must be a positive number'),
-  categoryId: z.string().min(1, 'Category ID is required'),
+  price: z.number().min(0, 'Kaina yra privaloma ir turi būti teigiamas skaičius'),
+  categoryId: z.string().min(1, 'Kategorijos ID yra privalomas'),
   attributes: z.record(z.string(), z.unknown()).optional(),
   images: z.array(z.string()).optional(),
 })
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   if (!dbUser) {
     throw createError({
       statusCode: 401,
-      statusMessage: 'User session is invalid. Please log in again.',
+      statusMessage: 'Vartotojo sesija nebegalioja. Prašome prisijungti iš naujo.',
     })
   }
 
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Validation Error',
+      statusMessage: 'Validacijos klaida',
       data: z.treeifyError(result.error),
     })
   }
@@ -50,7 +50,7 @@ export default defineEventHandler(async (event) => {
   ) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Category not found',
+      statusMessage: 'Kategorija nerasta',
     })
   }
 
@@ -65,7 +65,7 @@ export default defineEventHandler(async (event) => {
   // Ensure required attributes are present
   for (const def of defs) {
     if (def.required && (incomingAttrs[def.key] === undefined || incomingAttrs[def.key] === null)) {
-      throw createError({ statusCode: 400, statusMessage: `Attribute ${def.key} is required` })
+      throw createError({ statusCode: 400, statusMessage: `Atributas ${def.key} yra privalomas` })
     }
   }
 
@@ -84,25 +84,28 @@ export default defineEventHandler(async (event) => {
         if (typeof value !== 'number' || !Number.isInteger(value))
           throw createError({
             statusCode: 400,
-            statusMessage: `Attribute ${key} must be an integer`,
+            statusMessage: `Atributas ${key} turi būti sveikasis skaičius`,
           })
         break
       case 'FLOAT':
         if (typeof value !== 'number')
-          throw createError({ statusCode: 400, statusMessage: `Attribute ${key} must be a number` })
+          throw createError({
+            statusCode: 400,
+            statusMessage: `Atributas ${key} turi būti skaičius`,
+          })
         break
       case 'BOOLEAN':
         if (typeof value !== 'boolean')
           throw createError({
             statusCode: 400,
-            statusMessage: `Attribute ${key} must be a boolean`,
+            statusMessage: `Atributas ${key} turi būti loginė reikšmė (true/false)`,
           })
         break
       case 'DATE':
         if (isNaN(Date.parse(String(value))))
           throw createError({
             statusCode: 400,
-            statusMessage: `Attribute ${key} must be a valid date`,
+            statusMessage: `Atributas ${key} turi būti galiojanti data`,
           })
         break
       case 'ENUM':
@@ -111,12 +114,12 @@ export default defineEventHandler(async (event) => {
           if (!Array.isArray(opts) || !opts.includes(value))
             throw createError({
               statusCode: 400,
-              statusMessage: `Attribute ${key} must be one of: ${opts?.join(', ')}`,
+              statusMessage: `Atributas ${key} turi būti vienas iš: ${opts?.join(', ')}`,
             })
         } catch {
           throw createError({
             statusCode: 400,
-            statusMessage: `Attribute ${key} has invalid enum options`,
+            statusMessage: `Atributas ${key} turi netinkamas enum reikšmes`,
           })
         }
         break
@@ -134,10 +137,16 @@ export default defineEventHandler(async (event) => {
       const minN = meta.minNumber as number | null | undefined
       const maxN = meta.maxNumber as number | null | undefined
       if (minN !== null && minN !== undefined && typeof value === 'number' && value < minN) {
-        throw createError({ statusCode: 400, statusMessage: `Attribute ${key} must be >= ${minN}` })
+        throw createError({
+          statusCode: 400,
+          statusMessage: `Atributas ${key} turi būti ne mažesnis nei ${minN}`,
+        })
       }
       if (maxN !== null && maxN !== undefined && typeof value === 'number' && value > maxN) {
-        throw createError({ statusCode: 400, statusMessage: `Attribute ${key} must be <= ${maxN}` })
+        throw createError({
+          statusCode: 400,
+          statusMessage: `Atributas ${key} turi būti ne didesnis nei ${maxN}`,
+        })
       }
     }
 
@@ -152,7 +161,7 @@ export default defineEventHandler(async (event) => {
         if (!isNaN(minDate.getTime()) && parsedVal.getTime() < minDate.getTime()) {
           throw createError({
             statusCode: 400,
-            statusMessage: `Attribute ${key} must be on or after ${minDate.toISOString()}`,
+            statusMessage: `Atributas ${key} turi būti ne anksčiau nei ${minDate.toISOString()}`,
           })
         }
       }
@@ -161,7 +170,7 @@ export default defineEventHandler(async (event) => {
         if (!isNaN(maxDate.getTime()) && parsedVal.getTime() > maxDate.getTime()) {
           throw createError({
             statusCode: 400,
-            statusMessage: `Attribute ${key} must be on or before ${maxDate.toISOString()}`,
+            statusMessage: `Atributas ${key} turi būti ne vėliau nei ${maxDate.toISOString()}`,
           })
         }
       }

@@ -4,7 +4,7 @@ import { z } from 'zod'
 import type { User } from '~/server/types/User'
 
 const commentDeleteSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 // Delete a comment by ID
@@ -21,15 +21,15 @@ export default defineEventHandler(async (event) => {
   if (!comment) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Comment not found',
+      statusMessage: 'Komentaras nerastas',
     })
   }
 
-  // Check if user owns the comment
-  if (comment.authorId !== extendedUser.id) {
+  // Check if user owns the comment or is admin
+  if (comment.authorId !== extendedUser.id && extendedUser.role !== 'ADMIN') {
     throw createError({
       statusCode: 403,
-      statusMessage: 'You can only delete your own comments',
+      statusMessage: 'Galite ištrinti tik savo komentarą',
     })
   }
 

@@ -2,15 +2,6 @@ import { getQuery } from 'h3'
 import prisma from '~/lib/prisma'
 import type { Prisma } from '@prisma/client'
 
-// Helper function to extract attribute values
-function extractAttributeValue(
-  attributes: { attribute?: { key: string }; value?: unknown }[],
-  key: string
-): unknown {
-  const attr = attributes.find((a) => a.attribute?.key === key)
-  return attr?.value ?? null
-}
-
 // Retrieve all listings
 export default defineEventHandler(async (event) => {
   const query = getQuery(event)
@@ -26,7 +17,7 @@ export default defineEventHandler(async (event) => {
     if (!category) {
       throw createError({
         statusCode: 404,
-        statusMessage: 'Category not found',
+        statusMessage: 'Kategorija nerasta',
       })
     }
     where.categoryId = categoryId
@@ -127,6 +118,13 @@ export default defineEventHandler(async (event) => {
         },
       },
       category: true,
+      author: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+      },
     },
     orderBy,
   })
@@ -139,14 +137,8 @@ export default defineEventHandler(async (event) => {
     image: listing.images[0]?.url || null,
     categoryId: listing.categoryId,
     category: listing.category,
+    author: listing.author,
     createdAt: listing.createdAt,
     updatedAt: listing.updatedAt,
-    // Extract common attributes
-    year: extractAttributeValue(listing.attributes, 'year'),
-    fuelType: extractAttributeValue(listing.attributes, 'fuel_type'),
-    gearbox: extractAttributeValue(listing.attributes, 'gearbox'),
-    power: extractAttributeValue(listing.attributes, 'power'),
-    mileage: extractAttributeValue(listing.attributes, 'mileage'),
-    city: extractAttributeValue(listing.attributes, 'city'),
   }))
 })

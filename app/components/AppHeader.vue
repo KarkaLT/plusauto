@@ -7,27 +7,46 @@ async function logout() {
   await navigateTo('/')
 }
 
-const items = [
-  [
-    {
-      label: 'Profilis',
-      icon: 'i-heroicons-user-circle',
-      to: '/profile',
-    },
-    {
-      label: 'Mano skelbimai',
-      icon: 'i-heroicons-list-bullet',
-      to: '/my-listings',
-    },
-  ],
-  [
-    {
-      label: 'Atsijungti',
-      icon: 'i-heroicons-arrow-left-on-rectangle',
-      onSelect: logout,
-    },
-  ],
-]
+type DropdownItem = {
+  label: string
+  icon?: string
+  to?: string
+  onSelect?: () => Promise<void> | void
+}
+
+const items = computed<DropdownItem[][]>(() => {
+  const baseItems: DropdownItem[][] = [
+    [
+      {
+        label: 'Profilis',
+        icon: 'i-heroicons-user-circle',
+        to: '/profile',
+      },
+      {
+        label: 'Mano skelbimai',
+        icon: 'i-heroicons-list-bullet',
+        to: '/my-listings',
+      },
+    ],
+    [
+      {
+        label: 'Atsijungti',
+        icon: 'i-heroicons-arrow-left-on-rectangle',
+        onSelect: logout,
+      },
+    ],
+  ]
+
+  if (user.value?.role === 'ADMIN') {
+    baseItems[0]!.unshift({
+      label: 'Administratoriaus pultas',
+      icon: 'i-heroicons-cog-6-tooth',
+      to: '/admin',
+    })
+  }
+
+  return baseItems
+})
 </script>
 
 <template>

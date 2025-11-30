@@ -4,7 +4,7 @@ import { z } from 'zod'
 import { Role } from '@prisma/client'
 
 const categoryDeleteSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 // Delete a category by ID
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   if (user.role !== Role.ADMIN && user.role !== Role.MODERATOR) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'Only admins and moderators can delete categories',
+      statusMessage: 'Tik administratoriai gali ištrinti kategorijas',
     })
   }
 
@@ -24,7 +24,7 @@ export default defineEventHandler(async (event) => {
   if (!(await prisma.category.findUnique({ where: { id } }))) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Category not found',
+      statusMessage: 'Kategorija nerasta',
     })
   }
 

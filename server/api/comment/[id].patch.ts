@@ -4,11 +4,11 @@ import { z } from 'zod'
 import type { User } from '~/server/types/User'
 
 const commentIdSchema = z.object({
-  id: z.string().min(1, 'ID is required'),
+  id: z.string().min(1, 'ID yra privalomas'),
 })
 
 const commentUpdateSchema = z.object({
-  content: z.string().min(1, 'Content is required'),
+  content: z.string().min(1, 'Turinys yra privalomas'),
 })
 
 // Update a comment
@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   if (!result.success) {
     throw createError({
       statusCode: 400,
-      statusMessage: 'Validation Error',
+      statusMessage: 'Validacijos klaida',
       data: z.treeifyError(result.error),
     })
   }
@@ -37,7 +37,7 @@ export default defineEventHandler(async (event) => {
   if (!comment) {
     throw createError({
       statusCode: 404,
-      statusMessage: 'Comment not found',
+      statusMessage: 'Komentaras nerastas',
     })
   }
 
@@ -45,7 +45,7 @@ export default defineEventHandler(async (event) => {
   if (comment.authorId !== extendedUser.id) {
     throw createError({
       statusCode: 403,
-      statusMessage: 'You can only edit your own comments',
+      statusMessage: 'Galite redaguoti tik savo komentarą',
     })
   }
 

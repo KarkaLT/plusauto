@@ -33,7 +33,7 @@ const selectedSort = computed({
     <UContainer class="py-12">
       <div class="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <!-- Filters Sidebar -->
-        <aside class="hidden lg:block">
+        <aside>
           <ListingFilter @filter="handleFilter" />
         </aside>
 
