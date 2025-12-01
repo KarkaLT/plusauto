@@ -1,4 +1,8 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['auth'],
+})
+
 const { data: listings, pending } = await useFetch('/api/listing/mine')
 </script>
 

@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 definePageMeta({
   layout: 'default',
+  middleware: ['auth'],
 })
 
 const { user } = useUserSession()

@@ -236,6 +236,11 @@ function isOwnComment(authorId: string): boolean {
   return loggedIn.value && user.value?.id === authorId
 }
 
+function canEditListing(): boolean {
+  // Only owner
+  return loggedIn.value && user.value?.id === listing.value?.authorId
+}
+
 function canDeleteListing(): boolean {
   // Owner or admin
   return (
@@ -505,7 +510,18 @@ async function confirmDeleteListing() {
           >
             Siųsti el. laišką
           </UButton>
-          <div class="mt-3">
+          <div class="mt-3 space-y-2">
+            <UButton
+              v-if="canEditListing()"
+              block
+              size="lg"
+              color="primary"
+              variant="outline"
+              icon="i-heroicons-pencil"
+              :to="`/listings/${_id}/edit`"
+            >
+              Redaguoti skelbimą
+            </UButton>
             <UButton
               v-if="canDeleteListing()"
               block

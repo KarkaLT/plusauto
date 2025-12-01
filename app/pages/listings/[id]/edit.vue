@@ -1,5 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
+
+const route = useRoute()
+const router = useRouter()
+const listingId = route.params.id as string
 
 definePageMeta({
   layout: 'default',
@@ -21,7 +25,6 @@ interface AttributeDefinition {
   maxNumber?: number | null
   minDate?: string | null
   maxDate?: string | null
-  // Added for UI helper
   parsedOptions?: string[]
 }
 
@@ -31,27 +34,32 @@ interface Category {
   description?: string | null
 }
 
-interface CategoryWithAttributes extends Category {
-  attributes: AttributeDefinition[]
-}
-
-interface CategorySelectItem {
+interface ListingData {
   id: string
-  name: string
-  description: string
-  label: string
+  title: string
+  description: string | null
+  price: number
+  categoryId: string
+  authorId: string
+  category: Category
+  images: { id: string; url: string }[]
+  attributes: {
+    id: string
+    value: unknown
+    attribute: AttributeDefinition
+  }[]
 }
 
 // --- State ---
 const loading = ref(false)
-const selectedCategory = ref<CategorySelectItem | undefined>(undefined)
+const uploading = ref(false)
+const loadingListing = ref(true)
 const categoryAttributes = ref<AttributeDefinition[]>([])
 const attributeErrors = ref<Record<string, string | null>>({})
 const touchedFields = ref<Record<string, boolean>>({})
 const files = ref<File[]>([])
 const processedFiles = new Set<string>()
 const isDragging = ref(false)
-const uploading = ref(false)
 
 const toast = useToast()
 
@@ -60,25 +68,81 @@ const form = ref({
   description: '',
   price: null as number | null,
   categoryId: null as string | null,
+  categoryName: '',
   attributes: {} as Record<string, unknown>,
   images: [] as string[],
 })
 
-// --- Data Fetching ---
-const { data: categories } = await useFetch<Category[]>('/api/category/all', {
-  default: () => [],
-})
+// Check if user is logged in first
+const { user } = useUserSession()
 
-// --- Computed ---
-const categoryOptions = computed(() =>
-  (categories.value || []).map((c) => ({
-    id: c.id,
-    name: c.name,
-    label: c.name,
-    description: c.description ?? undefined,
-  }))
+// --- Fetch listing data ---
+const { data: listingData, error: listingError } = await useFetch<ListingData>(
+  `/api/listing/${listingId}`
 )
 
+console.log('Listing data:', listingData.value)
+console.log('Listing error:', listingError.value)
+console.log('User:', user.value)
+
+if (listingError.value || !listingData.value) {
+  console.error('Failed to load listing:', listingError.value)
+  throw createError({
+    statusCode: 404,
+    statusMessage: 'Skelbimas nerastas',
+    fatal: true,
+  })
+}
+
+// Check if current user owns this listing (after user session is loaded)
+const isOwner = user.value?.id === listingData.value.authorId
+const isAdmin = user.value?.role === 'ADMIN'
+
+console.log('Is owner:', isOwner, 'Is admin:', isAdmin)
+
+if (!isOwner && !isAdmin) {
+  throw createError({
+    statusCode: 403,
+    statusMessage: 'Galite redaguoti tik savo skelbimą',
+    fatal: true,
+  })
+}
+
+console.log('Authorization passed')
+// Pre-populate form with existing data
+form.value.title = listingData.value.title
+form.value.description = listingData.value.description || ''
+form.value.price = listingData.value.price
+form.value.categoryId = listingData.value.categoryId
+form.value.categoryName = listingData.value.category.name
+form.value.images = listingData.value.images.map((img) => img.url)
+
+// Pre-populate attributes
+categoryAttributes.value = listingData.value.attributes.map((attr) => {
+  const def = attr.attribute
+  // Pre-process ENUM options
+  if (def.type === 'ENUM') {
+    const rawOpts = def.options
+    let parsed: string[] = []
+    try {
+      parsed = Array.isArray(rawOpts) ? rawOpts : JSON.parse(String(rawOpts || '[]'))
+    } catch {
+      /* ignore error */
+    }
+    return { ...def, parsedOptions: parsed }
+  }
+  return def
+})
+
+// Set attribute values
+categoryAttributes.value.forEach((def) => {
+  const existingAttr = listingData.value!.attributes.find((a) => a.attribute.key === def.key)
+  form.value.attributes[def.key] = existingAttr?.value ?? null
+})
+
+loadingListing.value = false
+
+// --- Computed ---
 const hasAttributeErrors = computed(() =>
   Object.values(attributeErrors.value).some((error) => !!error)
 )
@@ -88,39 +152,6 @@ const shouldShowError = (key: string) => {
 }
 
 // --- Methods ---
-
-async function loadCategoryDetails(id: string) {
-  try {
-    const data = await $fetch<CategoryWithAttributes>(`/api/category/${id}`)
-
-    // Pre-process attributes (parse ENUM options once)
-    categoryAttributes.value = (data?.attributes || []).map((attr) => {
-      if (attr.type === 'ENUM') {
-        const rawOpts = attr.options
-        let parsed: string[] = []
-        try {
-          parsed = Array.isArray(rawOpts) ? rawOpts : JSON.parse(String(rawOpts || '[]'))
-        } catch {
-          /* ignore error */
-        }
-        return { ...attr, parsedOptions: parsed }
-      }
-      return attr
-    })
-
-    // Reset form attributes
-    form.value.attributes = {}
-    categoryAttributes.value.forEach((def) => {
-      form.value.attributes[def.key] = null
-    })
-
-    // Clear errors and touched state
-    attributeErrors.value = {}
-    touchedFields.value = {}
-  } catch (err) {
-    console.error('Error loading details:', err)
-  }
-}
 
 function runValidation() {
   let isValid = true
@@ -222,11 +253,7 @@ function removeImage(index: number) {
   form.value.images.splice(index, 1)
 }
 
-const { user } = useUserSession()
-
 async function submit() {
-  console.log(user.value)
-
   if (loading.value) return
   loading.value = true
 
@@ -245,44 +272,35 @@ async function submit() {
       title: form.value.title,
       description: form.value.description,
       price: form.value.price,
-      categoryId: form.value.categoryId,
       attributes: cleanAttributes,
-      images: form.value.images,
+      images: [...form.value.images],
     }
 
-    const created = await $fetch<{ id?: string }>('/api/listing/new', {
-      method: 'POST',
+    console.log('Submitting payload:', payload)
+
+    await $fetch(`/api/listing/${listingId}`, {
+      method: 'PATCH',
       body: payload,
     })
 
-    if (created?.id) {
-      await navigateTo(`/listings/${created.id}`)
-    } else {
-      await navigateTo('/')
-    }
+    toast.add({
+      title: 'Sėkmingai',
+      description: 'Skelbimas atnaujintas',
+      color: 'success',
+    })
+
+    await navigateTo(`/listings/${listingId}`)
   } catch (err) {
     console.error(err)
+    toast.add({
+      title: 'Klaida',
+      description: 'Nepavyko atnaujinti skelbimo',
+      color: 'error',
+    })
   } finally {
     loading.value = false
   }
 }
-
-// --- Watchers ---
-
-// Handle Category Selection
-watch(selectedCategory, (newVal) => {
-  const id = newVal?.id ?? null
-  form.value.categoryId = id
-
-  if (id) {
-    loadCategoryDetails(id)
-  } else {
-    categoryAttributes.value = []
-    form.value.attributes = {}
-    attributeErrors.value = {}
-    touchedFields.value = {}
-  }
-})
 
 // --- Helper Functions (Pure Logic) ---
 
@@ -377,10 +395,13 @@ function parseValueForSubmit(def: AttributeDefinition, raw: unknown): unknown {
 <template>
   <UContainer class="py-10 max-w-4xl">
     <div class="mb-6">
-      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Naujas skelbimas</h1>
+      <h1 class="text-3xl font-bold text-gray-900 dark:text-white">Redaguoti skelbimą</h1>
     </div>
 
-    <UCard class="overflow-visible ring-1 ring-gray-200 dark:ring-gray-800 shadow-lg">
+    <UCard
+      v-if="!loadingListing"
+      class="overflow-visible ring-1 ring-gray-200 dark:ring-gray-800 shadow-lg"
+    >
       <form class="space-y-8" @submit.prevent="submit">
         <!-- 1. Pagrindinė informacija -->
         <div>
@@ -394,16 +415,15 @@ function parseValueForSubmit(def: AttributeDefinition, raw: unknown): unknown {
           <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
             <div class="sm:col-span-3">
               <UFormField label="Kategorija" required>
-                <USelectMenu
-                  v-model="selectedCategory"
-                  :items="categoryOptions"
-                  label-key="name"
-                  placeholder="Pasirinkite kategoriją..."
-                  icon="i-heroicons-tag"
-                  searchable
-                  searchable-placeholder="Ieškoti..."
+                <UInput
+                  v-model="form.categoryName"
+                  disabled
                   class="w-full"
+                  icon="i-heroicons-tag"
                 />
+                <template #hint>
+                  <span class="text-xs text-gray-500">Kategorijos negalima pakeisti</span>
+                </template>
               </UFormField>
             </div>
 
@@ -614,9 +634,9 @@ function parseValueForSubmit(def: AttributeDefinition, raw: unknown): unknown {
 
         <!-- Footer Actions -->
         <div class="flex items-center justify-between pt-2">
-          <p class="text-sm text-gray-500 italic">
-            Kontaktinė informacija bus pridėta automatiškai iš jūsų profilio.
-          </p>
+          <UButton color="neutral" size="lg" variant="ghost" @click="router.back()">
+            Atšaukti
+          </UButton>
           <div class="flex gap-4">
             <UButton
               color="primary"
@@ -626,11 +646,18 @@ function parseValueForSubmit(def: AttributeDefinition, raw: unknown): unknown {
               type="submit"
               icon="i-heroicons-check"
             >
-              {{ uploading ? 'Įkeliama...' : 'Paskelbti' }}
+              {{ uploading ? 'Įkeliama...' : 'Atnaujinti' }}
             </UButton>
           </div>
         </div>
       </form>
+    </UCard>
+
+    <!-- Loading state -->
+    <UCard v-else class="overflow-visible ring-1 ring-gray-200 dark:ring-gray-800 shadow-lg">
+      <div class="flex justify-center py-12">
+        <UIcon name="i-heroicons-arrow-path" class="w-8 h-8 animate-spin text-primary-600" />
+      </div>
     </UCard>
   </UContainer>
 </template>

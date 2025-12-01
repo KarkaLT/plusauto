@@ -1,4 +1,8 @@
 <script setup lang="ts">
+definePageMeta({
+  middleware: ['admin'],
+})
+
 interface Listing {
   id: string
   title: string
@@ -49,13 +53,13 @@ const items = [
 
 // Fetch real data
 const { data: listings, refresh: refreshListings } = await useAsyncData<Listing[]>('listings', () =>
-  $fetch('/api/listing/all')
+  $fetch<Listing[]>('/api/listing/all')
 )
 const { data: users, refresh: refreshUsers } = await useAsyncData<User[]>('users', () =>
-  $fetch('/api/user/all')
+  $fetch<User[]>('/api/user/all')
 )
 const { data: comments, refresh: refreshComments } = await useAsyncData<Comment[]>('comments', () =>
-  $fetch('/api/comment/all')
+  $fetch<Comment[]>('/api/comment/all')
 )
 
 const toast = useToast()

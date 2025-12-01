@@ -42,7 +42,7 @@ export default defineEventHandler(async (event) => {
     }
 
     return file
-  } catch {
-    throw createError({ statusCode: 404, statusMessage: 'Failas nerastas' })
+  } catch (err) {
+    throw createError({ statusCode: 404, statusMessage: `Failas nerastas: ${filePath} (${err})` })
   }
 })
