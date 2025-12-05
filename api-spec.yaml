@@ -1,0 +1,1652 @@
+openapi: 3.0.3
+info:
+  title: PlusAuto API
+  description: |
+    RESTful API for PlusAuto - a classified ads marketplace for vehicles.
+
+    ## Authentication
+    The API uses session-based authentication. After successful login or registration,
+    a session cookie is set automatically.
+
+    ## Error Responses
+    All error responses follow this format:
+    ```json
+    {
+      "statusCode": 400,
+      "statusMessage": "Error message in Lithuanian"
+    }
+    ```
+  version: 1.0.0
+  contact:
+    name: PlusAuto Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Development server
+  - url: https://plusauto.vercel.app/api
+    description: Production server
+
+tags:
+  - name: Auth
+    description: Authentication operations (login, register, logout)
+  - name: Category
+    description: Category management operations
+  - name: Listing
+    description: Listing (skelbimas) operations
+  - name: Comment
+    description: Comment operations for listings
+  - name: User
+    description: User management operations
+  - name: Upload
+    description: File upload operations
+
+paths:
+  # ==================== AUTH ====================
+  /auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      description: Creates a new user account with email and password
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              email: 'user@example.com'
+              password: 'slaptazodis123'
+              name: 'Jonas Jonaitis'
+              phoneNumber: '+37061234567'
+      responses:
+        '200':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+              example:
+                statusMessage: 'Registration successful'
+                user:
+                  id: 'clx1234567890abcdef'
+                  email: 'user@example.com'
+                  name: 'Jonas Jonaitis'
+                  role: 'USER'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              example:
+                statusCode: 400
+                statusMessage: 'Validacijos klaida'
+                data:
+                  email: 'Neteisingas el. pašto formatas'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              example:
+                statusCode: 409
+                statusMessage: 'Vartotojas su šiuo el. paštu jau egzistuoja'
+
+  /auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Login user
+      description: Authenticates a user with email and password
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: 'user@example.com'
+              password: 'slaptazodis123'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              example:
+                statusMessage: 'Login successful'
+        '401':
+          description: Invalid credentials or Google OAuth account
+          content:
+            application/json:
+              examples:
+                invalidCredentials:
+                  summary: Invalid email or password
+                  value:
+                    statusCode: 401
+                    statusMessage: 'Neteisingas el. paštas arba slaptažodis'
+                googleAccount:
+                  summary: Account uses Google OAuth
+                  value:
+                    statusCode: 401
+                    statusMessage: 'Šiai paskyrai naudojamas Google prisijungimas'
+
+  /auth/logout:
+    post:
+      tags:
+        - Auth
+      summary: Logout user
+      description: Clears the user session and logs out
+      operationId: logoutUser
+      responses:
+        '200':
+          description: Logout successful
+          content:
+            application/json:
+              example:
+                statusMessage: 'Logged out'
+
+  /auth/google:
+    get:
+      tags:
+        - Auth
+      summary: Google OAuth login
+      description: Initiates Google OAuth flow. Redirects to Google for authentication.
+      operationId: googleAuth
+      responses:
+        '302':
+          description: Redirect to Google OAuth
+        '200':
+          description: OAuth successful, redirects to home page
+
+  # ==================== CATEGORY ====================
+  /category/all:
+    get:
+      tags:
+        - Category
+      summary: Get all categories
+      description: Returns a list of all categories sorted alphabetically by name
+      operationId: getAllCategories
+      responses:
+        '200':
+          description: List of categories
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+              example:
+                - id: 'clx1234567890abcdef'
+                  name: 'Automobiliai'
+                  description: 'Lengvieji automobiliai'
+                - id: 'clx2345678901bcdefg'
+                  name: 'Motociklai'
+                  description: 'Motociklai ir mopedai'
+
+  /category/new:
+    post:
+      tags:
+        - Category
+      summary: Create a new category
+      description: Creates a new category. Requires ADMIN or MODERATOR role.
+      operationId: createCategory
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryCreateRequest'
+            example:
+              name: 'Sunkvežimiai'
+              description: 'Krovininiai automobiliai'
+      responses:
+        '200':
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+              example:
+                id: 'clx3456789012cdefgh'
+                name: 'Sunkvežimiai'
+                description: 'Krovininiai automobiliai'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              example:
+                statusCode: 400
+                statusMessage: 'Validacijos klaida'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Tik administratoriai gali kurti kategorijas'
+        '409':
+          description: Category already exists
+          content:
+            application/json:
+              example:
+                statusCode: 409
+                statusMessage: 'Kategorija su tokiu pavadinimu jau egzistuoja'
+
+  /category/{id}:
+    get:
+      tags:
+        - Category
+      summary: Get category by ID
+      description: Returns a single category with its attribute definitions
+      operationId: getCategoryById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: 'clx1234567890abcdef'
+      responses:
+        '200':
+          description: Category with attributes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoryWithAttributes'
+              example:
+                id: 'clx1234567890abcdef'
+                name: 'Automobiliai'
+                description: 'Lengvieji automobiliai'
+                attributes:
+                  - id: 'clx_attr_1'
+                    name: 'Metai'
+                    key: 'year'
+                    type: 'INT'
+                    required: true
+                    minNumber: 1900
+                    maxNumber: 2025
+                  - id: 'clx_attr_2'
+                    name: 'Kuro tipas'
+                    key: 'fuelType'
+                    type: 'ENUM'
+                    required: true
+                    options: ['Benzinas', 'Dyzelinas', 'Elektra', 'Hibridas']
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Kategorija nerasta'
+
+    put:
+      tags:
+        - Category
+      summary: Update category
+      description: Updates an existing category. Requires ADMIN or MODERATOR role.
+      operationId: updateCategory
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryUpdateRequest'
+            example:
+              name: 'Automobiliai (Lengvieji)'
+              description: 'Naujas aprašymas'
+      responses:
+        '200':
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              example:
+                statusCode: 400
+                statusMessage: 'Validacijos klaida'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Tik administratoriai gali atnaujinti kategorijas'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Kategorija nerasta'
+        '409':
+          description: Another category with this name exists
+          content:
+            application/json:
+              example:
+                statusCode: 409
+                statusMessage: 'Kita kategorija su tokiu pavadinimu jau egzistuoja'
+
+    delete:
+      tags:
+        - Category
+      summary: Delete category
+      description: Deletes a category by ID. Requires ADMIN or MODERATOR role.
+      operationId: deleteCategory
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Category deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Category'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Tik administratoriai gali ištrinti kategorijas'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Kategorija nerasta'
+
+  # ==================== LISTING ====================
+  /listing/all:
+    get:
+      tags:
+        - Listing
+      summary: Get all listings
+      description: |
+        Returns a list of all listings with optional filtering and sorting.
+
+        **Filtering:**
+        - `categoryId` - Filter by category ID
+        - Dynamic attribute filters using `{attributeKey}`, `{attributeKey}_min`, `{attributeKey}_max`
+
+        **Sorting:**
+        - `sort=createdAt_desc` (default) - Newest first
+        - `sort=createdAt_asc` - Oldest first
+        - `sort=price_asc` - Cheapest first
+        - `sort=price_desc` - Most expensive first
+      operationId: getAllListings
+      parameters:
+        - name: categoryId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by category ID
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [createdAt_desc, createdAt_asc, price_asc, price_desc]
+          description: Sort order
+        - name: year_min
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Minimum year (example attribute filter)
+        - name: year_max
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Maximum year (example attribute filter)
+      responses:
+        '200':
+          description: List of listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ListingSummary'
+              example:
+                - id: 'clx_listing_1'
+                  title: 'BMW 320d 2020'
+                  price: 25000
+                  image: 'https://example.com/images/bmw.webp'
+                  categoryId: 'clx_cat_1'
+                  category:
+                    id: 'clx_cat_1'
+                    name: 'Automobiliai'
+                  author:
+                    id: 'clx_user_1'
+                    name: 'Jonas'
+                    email: 'jonas@example.com'
+                  createdAt: '2024-01-15T10:30:00Z'
+                  updatedAt: '2024-01-15T10:30:00Z'
+        '404':
+          description: Category not found (if categoryId filter is provided)
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Kategorija nerasta'
+
+  /listing/mine:
+    get:
+      tags:
+        - Listing
+      summary: Get current user's listings
+      description: Returns all listings created by the authenticated user
+      operationId: getMyListings
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: List of user's listings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ListingSummary'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              example:
+                statusCode: 401
+                statusMessage: 'Unauthorized'
+
+  /listing/new:
+    post:
+      tags:
+        - Listing
+      summary: Create a new listing
+      description: Creates a new listing with title, description, price, category, attributes, and images
+      operationId: createListing
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingCreateRequest'
+            example:
+              title: 'BMW 320d 2020, pilna komplektacija'
+              description: 'Parduodu gerai prižiūrėtą BMW 320d. Rida 85000 km.'
+              price: 25000
+              categoryId: 'clx_cat_automobiles'
+              attributes:
+                year: 2020
+                mileage: 85000
+                fuelType: 'Dyzelinas'
+                transmission: 'Automatinė'
+              images:
+                - 'https://storage.example.com/listings/img1.webp'
+                - 'https://storage.example.com/listings/img2.webp'
+      responses:
+        '200':
+          description: Listing created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+              example:
+                id: 'clx_listing_new'
+                title: 'BMW 320d 2020, pilna komplektacija'
+                description: 'Parduodu gerai prižiūrėtą BMW 320d. Rida 85000 km.'
+                price: 25000
+                categoryId: 'clx_cat_automobiles'
+                authorId: 'clx_user_1'
+                createdAt: '2024-01-15T10:30:00Z'
+                updatedAt: '2024-01-15T10:30:00Z'
+        '400':
+          description: Validation error or category not found
+          content:
+            application/json:
+              examples:
+                validation:
+                  summary: Validation error
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Validacijos klaida'
+                categoryNotFound:
+                  summary: Category not found
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Kategorija nerasta'
+                missingAttribute:
+                  summary: Required attribute missing
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Atributas year yra privalomas'
+                invalidAttributeType:
+                  summary: Invalid attribute type
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Atributas mileage turi būti sveikasis skaičius'
+        '401':
+          description: Not authenticated or session expired
+          content:
+            application/json:
+              example:
+                statusCode: 401
+                statusMessage: 'Vartotojo sesija nebegalioja. Prašome prisijungti iš naujo.'
+
+  /listing/{id}:
+    get:
+      tags:
+        - Listing
+      summary: Get listing by ID
+      description: Returns a single listing with all details, images, attributes, author info, and category
+      operationId: getListingById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Listing details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingDetail'
+              example:
+                id: 'clx_listing_1'
+                title: 'BMW 320d 2020'
+                description: 'Puikus automobilis'
+                price: 25000
+                categoryId: 'clx_cat_1'
+                authorId: 'clx_user_1'
+                createdAt: '2024-01-15T10:30:00Z'
+                updatedAt: '2024-01-15T10:30:00Z'
+                images:
+                  - id: 'clx_img_1'
+                    url: 'https://storage.example.com/img1.webp'
+                    listingId: 'clx_listing_1'
+                attributes:
+                  - id: 'clx_attr_val_1'
+                    listingId: 'clx_listing_1'
+                    attributeId: 'clx_attr_def_1'
+                    value: 2020
+                    attribute:
+                      id: 'clx_attr_def_1'
+                      name: 'Metai'
+                      key: 'year'
+                      type: 'INT'
+                author:
+                  id: 'clx_user_1'
+                  name: 'Jonas'
+                  email: 'jonas@example.com'
+                  phoneNumber: '+37061234567'
+                category:
+                  id: 'clx_cat_1'
+                  name: 'Automobiliai'
+        '404':
+          description: Listing not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Skelbimas nerastas'
+
+    patch:
+      tags:
+        - Listing
+      summary: Update listing
+      description: Updates an existing listing. Only the owner or ADMIN can update.
+      operationId: updateListing
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ListingUpdateRequest'
+            example:
+              title: 'BMW 320d 2020 - Kaina sumažinta!'
+              price: 23500
+              attributes:
+                year: 2020
+                mileage: 87000
+      responses:
+        '200':
+          description: Listing updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+        '400':
+          description: Validation error or invalid attribute
+          content:
+            application/json:
+              examples:
+                validation:
+                  summary: Validation error
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Validacijos klaida'
+                unknownAttribute:
+                  summary: Unknown attribute
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Nežinomas atributas: unknownKey'
+        '403':
+          description: Not authorized to edit this listing
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Galite redaguoti tik savo skelbimą'
+        '404':
+          description: Listing not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Skelbimas nerastas'
+
+    delete:
+      tags:
+        - Listing
+      summary: Delete listing
+      description: Deletes a listing and all associated images and comments. Only the owner or ADMIN can delete.
+      operationId: deleteListing
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Listing deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Listing'
+        '403':
+          description: Not authorized to delete this listing
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Galite ištrinti tik savo skelbimą'
+        '404':
+          description: Listing not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Skelbimas nerastas'
+
+  # ==================== COMMENT ====================
+  /comment/all:
+    get:
+      tags:
+        - Comment
+      summary: Get all comments
+      description: Returns all top-level comments with their replies. Can be filtered by listing.
+      operationId: getAllComments
+      parameters:
+        - name: listingId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter comments by listing ID
+      responses:
+        '200':
+          description: List of comments with replies
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CommentWithReplies'
+              example:
+                - id: 'clx_comment_1'
+                  content: 'Ar galima derėtis dėl kainos?'
+                  listingId: 'clx_listing_1'
+                  authorId: 'clx_user_2'
+                  parentId: null
+                  createdAt: '2024-01-16T14:00:00Z'
+                  updatedAt: '2024-01-16T14:00:00Z'
+                  author:
+                    id: 'clx_user_2'
+                    name: 'Petras'
+                    email: 'petras@example.com'
+                  listing:
+                    id: 'clx_listing_1'
+                    title: 'BMW 320d 2020'
+                  replies:
+                    - id: 'clx_comment_2'
+                      content: 'Taip, galima. Rašykite asmeniškai.'
+                      parentId: 'clx_comment_1'
+                      authorId: 'clx_user_1'
+                      createdAt: '2024-01-16T15:00:00Z'
+                      author:
+                        id: 'clx_user_1'
+                        name: 'Jonas'
+                        email: 'jonas@example.com'
+        '404':
+          description: Listing not found (if listingId filter is provided)
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Skelbimas nerastas'
+
+  /comment/new:
+    post:
+      tags:
+        - Comment
+      summary: Create a new comment
+      description: Creates a new comment on a listing. Can be a reply to another comment.
+      operationId: createComment
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateRequest'
+            examples:
+              topLevel:
+                summary: Top-level comment
+                value:
+                  listingId: 'clx_listing_1'
+                  content: 'Ar automobilis dar parduodamas?'
+              reply:
+                summary: Reply to a comment
+                value:
+                  listingId: 'clx_listing_1'
+                  content: 'Taip, vis dar parduodamas.'
+                  parentId: 'clx_comment_1'
+      responses:
+        '200':
+          description: Comment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+              example:
+                id: 'clx_comment_new'
+                listingId: 'clx_listing_1'
+                authorId: 'clx_user_2'
+                content: 'Ar automobilis dar parduodamas?'
+                parentId: null
+                createdAt: '2024-01-17T10:00:00Z'
+                updatedAt: '2024-01-17T10:00:00Z'
+        '400':
+          description: Validation error, listing not found, or parent comment not found
+          content:
+            application/json:
+              examples:
+                validation:
+                  summary: Validation error
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Validacijos klaida'
+                listingNotFound:
+                  summary: Listing not found
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Skelbimas nerastas'
+                parentNotFound:
+                  summary: Parent comment not found
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Tėvinis komentaras nerastas'
+
+  /comment/{id}:
+    get:
+      tags:
+        - Comment
+      summary: Get comment by ID
+      description: Returns a single comment by ID
+      operationId: getCommentById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Komentaras nerastas'
+
+    patch:
+      tags:
+        - Comment
+      summary: Update comment
+      description: Updates an existing comment. Only the comment author can update.
+      operationId: updateComment
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentUpdateRequest'
+            example:
+              content: 'Atnaujintas komentaro turinys'
+      responses:
+        '200':
+          description: Comment updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              example:
+                statusCode: 400
+                statusMessage: 'Validacijos klaida'
+        '403':
+          description: Not authorized to edit this comment
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Galite redaguoti tik savo komentarą'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Komentaras nerastas'
+
+    delete:
+      tags:
+        - Comment
+      summary: Delete comment
+      description: Deletes a comment. Only the comment author or ADMIN can delete.
+      operationId: deleteComment
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Comment deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '403':
+          description: Not authorized to delete this comment
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Galite ištrinti tik savo komentarą'
+        '404':
+          description: Comment not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Komentaras nerastas'
+
+  # ==================== USER ====================
+  /user/all:
+    get:
+      tags:
+        - User
+      summary: Get all users
+      description: Returns a list of all users with basic information
+      operationId: getAllUsers
+      responses:
+        '200':
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserBasic'
+              example:
+                - id: 'clx_user_1'
+                  name: 'Jonas Jonaitis'
+                  email: 'jonas@example.com'
+                  role: 'USER'
+                - id: 'clx_user_admin'
+                  name: 'Administratorius'
+                  email: 'admin@plusauto.lt'
+                  role: 'ADMIN'
+
+  /user/has-password:
+    get:
+      tags:
+        - User
+      summary: Check if user has password
+      description: Checks if the authenticated user has a password set (useful for Google OAuth users)
+      operationId: hasPassword
+      security:
+        - sessionAuth: []
+      responses:
+        '200':
+          description: Password status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  hasPassword:
+                    type: boolean
+              example:
+                hasPassword: false
+
+  /user/password:
+    patch:
+      tags:
+        - User
+      summary: Update password
+      description: |
+        Updates the user's password. 
+        - If user already has a password, `currentPassword` is required.
+        - If user doesn't have a password (Google OAuth), only new password is needed.
+      operationId: updatePassword
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordUpdateRequest'
+            examples:
+              withCurrentPassword:
+                summary: User with existing password
+                value:
+                  currentPassword: 'semasSlaptazodis123'
+                  newPassword: 'naujasSlaptazodis456'
+                  confirmPassword: 'naujasSlaptazodis456'
+              withoutCurrentPassword:
+                summary: Google OAuth user setting password
+                value:
+                  newPassword: 'naujasSlaptazodis456'
+                  confirmPassword: 'naujasSlaptazodis456'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              example:
+                statusMessage: 'Slaptažodis sekmingai atnaujintas'
+        '400':
+          description: Validation error or current password required
+          content:
+            application/json:
+              examples:
+                validation:
+                  summary: Passwords don't match
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Slaptažodžiai nesutampa'
+                currentRequired:
+                  summary: Current password required
+                  value:
+                    statusCode: 400
+                    statusMessage: 'Dabartinis slaptažodis yra privalomas'
+        '401':
+          description: Invalid current password
+          content:
+            application/json:
+              example:
+                statusCode: 401
+                statusMessage: 'Neteisingas dabartinis slaptažodis'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Nepavyko rasti vartotojo'
+
+  /user/profile:
+    patch:
+      tags:
+        - User
+      summary: Update profile
+      description: Updates the user's profile information (phone number)
+      operationId: updateProfile
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileUpdateRequest'
+            example:
+              phoneNumber: '+37069876543'
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              example:
+                statusMessage: 'Profilis sėkmingai atnaujintas'
+
+  /user/{id}:
+    delete:
+      tags:
+        - User
+      summary: Delete user
+      description: Deletes a user. Requires ADMIN role. Cannot delete yourself.
+      operationId: deleteUser
+      security:
+        - sessionAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Cannot delete yourself
+          content:
+            application/json:
+              example:
+                statusCode: 400
+                statusMessage: 'Negalite ištrinti savęs'
+        '403':
+          description: Insufficient permissions
+          content:
+            application/json:
+              example:
+                statusCode: 403
+                statusMessage: 'Tik administratoriai gali ištrinti vartotojus'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              example:
+                statusCode: 404
+                statusMessage: 'Vartotojas nerastas'
+
+  # ==================== UPLOAD ====================
+  /upload:
+    post:
+      tags:
+        - Upload
+      summary: Upload images
+      description: |
+        Uploads one or more images. Images are automatically converted to WebP format.
+
+        In development, images are stored locally.
+        In production, images are stored in Vercel Blob storage.
+      operationId: uploadImages
+      security:
+        - sessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadRequest'
+            example:
+              files:
+                - name: 'photo.jpg'
+                  content: 'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQ...'
+                  type: 'image/jpeg'
+                  size: '1234567'
+                  lastModified: 1705312000000
+      responses:
+        '200':
+          description: Images uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResponse'
+              example:
+                urls:
+                  - 'https://storage.vercel.app/listings/photo.webp'
+                  - 'https://storage.vercel.app/listings/photo2.webp'
+        '400':
+          description: No files provided
+          content:
+            application/json:
+              example:
+                statusCode: 400
+                statusMessage: 'Nėra įkeltų failų'
+
+components:
+  securitySchemes:
+    sessionAuth:
+      type: apiKey
+      in: cookie
+      name: session
+      description: Session cookie set after login
+
+  schemas:
+    # ==================== Auth Schemas ====================
+    RegisterRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          minLength: 8
+          description: Password (minimum 8 characters)
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+          description: User's display name (optional)
+        phoneNumber:
+          type: string
+          pattern: '^\+?[1-9]\d{7,14}$'
+          description: Phone number in international format (optional)
+
+    RegisterResponse:
+      type: object
+      properties:
+        statusMessage:
+          type: string
+        user:
+          $ref: '#/components/schemas/User'
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+
+    # ==================== User Schemas ====================
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        picture:
+          type: string
+          nullable: true
+        phoneNumber:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/Role'
+        googleId:
+          type: string
+          nullable: true
+
+    UserBasic:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          nullable: true
+        email:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+
+    Role:
+      type: string
+      enum:
+        - USER
+        - ADMIN
+
+    PasswordUpdateRequest:
+      type: object
+      required:
+        - newPassword
+        - confirmPassword
+      properties:
+        currentPassword:
+          type: string
+          description: Required if user already has a password
+        newPassword:
+          type: string
+          minLength: 8
+        confirmPassword:
+          type: string
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        phoneNumber:
+          type: string
+
+    # ==================== Category Schemas ====================
+    Category:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+          nullable: true
+
+    CategoryWithAttributes:
+      allOf:
+        - $ref: '#/components/schemas/Category'
+        - type: object
+          properties:
+            attributes:
+              type: array
+              items:
+                $ref: '#/components/schemas/AttributeDefinition'
+
+    CategoryCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
+    CategoryUpdateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+        description:
+          type: string
+
+    AttributeDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        categoryId:
+          type: string
+        name:
+          type: string
+        key:
+          type: string
+        type:
+          $ref: '#/components/schemas/AttributeType'
+        required:
+          type: boolean
+        options:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: For ENUM type - list of allowed values
+        minNumber:
+          type: number
+          nullable: true
+          description: Minimum value for INT/FLOAT types
+        maxNumber:
+          type: number
+          nullable: true
+          description: Maximum value for INT/FLOAT types
+        minDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Minimum date for DATE type
+        maxDate:
+          type: string
+          format: date-time
+          nullable: true
+          description: Maximum date for DATE type
+
+    AttributeType:
+      type: string
+      enum:
+        - STRING
+        - INT
+        - FLOAT
+        - BOOLEAN
+        - DATE
+        - ENUM
+        - JSON
+
+    # ==================== Listing Schemas ====================
+    Listing:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        price:
+          type: number
+        categoryId:
+          type: string
+        authorId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ListingSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        price:
+          type: number
+        image:
+          type: string
+          nullable: true
+          description: URL of the first image
+        categoryId:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        author:
+          $ref: '#/components/schemas/UserBasic'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ListingDetail:
+      allOf:
+        - $ref: '#/components/schemas/Listing'
+        - type: object
+          properties:
+            images:
+              type: array
+              items:
+                $ref: '#/components/schemas/Image'
+            attributes:
+              type: array
+              items:
+                $ref: '#/components/schemas/ListingAttribute'
+            author:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                email:
+                  type: string
+                phoneNumber:
+                  type: string
+            category:
+              $ref: '#/components/schemas/Category'
+
+    ListingCreateRequest:
+      type: object
+      required:
+        - title
+        - price
+        - categoryId
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        categoryId:
+          type: string
+          minLength: 1
+        attributes:
+          type: object
+          additionalProperties: true
+          description: Key-value pairs of category-specific attributes
+        images:
+          type: array
+          items:
+            type: string
+          description: Array of image URLs
+
+    ListingUpdateRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+        description:
+          type: string
+        price:
+          type: number
+          minimum: 0
+        attributes:
+          type: object
+          additionalProperties: true
+        images:
+          type: array
+          items:
+            type: string
+
+    Image:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+        listingId:
+          type: string
+
+    ListingAttribute:
+      type: object
+      properties:
+        id:
+          type: string
+        listingId:
+          type: string
+        attributeId:
+          type: string
+        value:
+          description: The attribute value (type depends on attribute definition)
+        attribute:
+          $ref: '#/components/schemas/AttributeDefinition'
+
+    # ==================== Comment Schemas ====================
+    Comment:
+      type: object
+      properties:
+        id:
+          type: string
+        listingId:
+          type: string
+        authorId:
+          type: string
+        content:
+          type: string
+        parentId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CommentWithReplies:
+      allOf:
+        - $ref: '#/components/schemas/Comment'
+        - type: object
+          properties:
+            author:
+              $ref: '#/components/schemas/UserBasic'
+            listing:
+              type: object
+              properties:
+                id:
+                  type: string
+                title:
+                  type: string
+            replies:
+              type: array
+              items:
+                allOf:
+                  - $ref: '#/components/schemas/Comment'
+                  - type: object
+                    properties:
+                      author:
+                        $ref: '#/components/schemas/UserBasic'
+
+    CommentCreateRequest:
+      type: object
+      required:
+        - listingId
+        - content
+      properties:
+        listingId:
+          type: string
+          minLength: 1
+        content:
+          type: string
+          minLength: 1
+        parentId:
+          type: string
+          description: ID of parent comment for replies
+
+    CommentUpdateRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+
+    # ==================== Upload Schemas ====================
+    UploadRequest:
+      type: object
+      required:
+        - files
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServerFile'
+
+    ServerFile:
+      type: object
+      properties:
+        name:
+          type: string
+        content:
+          type: string
+          description: Base64 encoded file content with data URL prefix
+        type:
+          type: string
+          description: MIME type
+        size:
+          type: string
+          description: File size in bytes
+        lastModified:
+          type: integer
+          description: Last modified timestamp
+
+    UploadResponse:
+      type: object
+      properties:
+        urls:
+          type: array
+          items:
+            type: string
+          description: Array of URLs for uploaded files
